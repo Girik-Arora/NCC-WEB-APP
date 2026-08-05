@@ -1,0 +1,257 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import AppShell from '@/components/layout/AppShell';
+import { useAuth } from '@/contexts/AuthContext';
+import { getCadetProfile, saveCadetProfile } from '@/lib/db';
+import type { CadetProfile } from '@/types';
+import toast from 'react-hot-toast';
+import { Save, User, Phone, AlertTriangle, Heart } from 'lucide-react';
+
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+const BRANCHES = ['Army', 'Navy', 'Air Force'];
+const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
+const GENDERS = ['Male', 'Female', 'Other'];
+
+export default function ProfilePage() {
+  const { user } = useAuth();
+  const [form, setForm] = useState<Partial<CadetProfile>>({
+    firstName: '', lastName: '', rollNumber: '', branch: 'Army',
+    college: '', semester: 1, bloodGroup: 'O+', dateOfBirth: '',
+    gender: 'Male', phone: '', address: '', city: '', state: '',
+    emergencyName: '', emergencyRelation: '', emergencyPhone: '',
+    medicalIssues: false, medicalDetails: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'personal' | 'contact' | 'emergency' | 'medical'>('personal');
+
+  useEffect(() => {
+    if (!user) return;
+    getCadetProfile(user.uid).then((p) => {
+      if (p) setForm(p);
+      setLoading(false);
+    });
+  }, [user]);
+
+  const handleChange = (field: keyof CadetProfile, value: unknown) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const isComplete = !!(form.firstName && form.lastName && form.rollNumber && form.phone && form.college);
+      await saveCadetProfile(user.uid, { ...form, profileComplete: isComplete });
+      toast.success('Profile saved successfully!');
+    } catch {
+      toast.error('Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tabs = [
+    { id: 'personal', label: 'Personal', icon: <User size={15} /> },
+    { id: 'contact', label: 'Contact', icon: <Phone size={15} /> },
+    { id: 'emergency', label: 'Emergency', icon: <AlertTriangle size={15} /> },
+    { id: 'medical', label: 'Medical', icon: <Heart size={15} /> },
+  ] as const;
+
+  if (loading) {
+    return (
+      <AppShell>
+        <div style={{ height: 400, background: '#e2e8f0', borderRadius: 12, animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }`}</style>
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>My Profile</h1>
+          <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Manage your personal information and contact details.</p>
+        </div>
+        <button className="btn-primary" onClick={handleSave} disabled={saving}>
+          <Save size={16} />
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+
+      {/* Tab Navigation */}
+      <div style={{
+        display: 'flex', gap: 4, marginBottom: 24,
+        background: '#f1f5f9', padding: 4, borderRadius: 10, width: 'fit-content',
+      }}>
+        {tabs.map((tab) => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 18px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+              background: activeTab === tab.id ? 'white' : 'transparent',
+              color: activeTab === tab.id ? '#1e3a5f' : '#64748b',
+              boxShadow: activeTab === tab.id ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s',
+            }}>
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="card" style={{ maxWidth: 720 }}>
+        {/* Personal Details */}
+        {activeTab === 'personal' && (
+          <div>
+            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <User size={18} color="#1e3a5f" /> Personal Details
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label">First Name *</label>
+                <input className="form-input" value={form.firstName || ''} onChange={(e) => handleChange('firstName', e.target.value)} placeholder="Enter first name" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Last Name *</label>
+                <input className="form-input" value={form.lastName || ''} onChange={(e) => handleChange('lastName', e.target.value)} placeholder="Enter last name" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Roll Number *</label>
+                <input className="form-input" value={form.rollNumber || ''} onChange={(e) => handleChange('rollNumber', e.target.value)} placeholder="e.g. 2024CSE001" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">College / Institution *</label>
+                <input className="form-input" value={form.college || ''} onChange={(e) => handleChange('college', e.target.value)} placeholder="College name" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">NCC Branch</label>
+                <select className="form-select" value={form.branch || 'Army'} onChange={(e) => handleChange('branch', e.target.value)}>
+                  {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Current Semester</label>
+                <select className="form-select" value={form.semester || 1} onChange={(e) => handleChange('semester', parseInt(e.target.value))}>
+                  {SEMESTERS.map((s) => <option key={s} value={s}>Semester {s}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Blood Group</label>
+                <select className="form-select" value={form.bloodGroup || 'O+'} onChange={(e) => handleChange('bloodGroup', e.target.value)}>
+                  {BLOOD_GROUPS.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Gender</label>
+                <select className="form-select" value={form.gender || 'Male'} onChange={(e) => handleChange('gender', e.target.value)}>
+                  {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">Date of Birth</label>
+                <input className="form-input" type="date" value={form.dateOfBirth || ''} onChange={(e) => handleChange('dateOfBirth', e.target.value)} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contact Details */}
+        {activeTab === 'contact' && (
+          <div>
+            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Phone size={18} color="#1e3a5f" /> Contact Details
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">Phone Number *</label>
+                <input className="form-input" value={form.phone || ''} onChange={(e) => handleChange('phone', e.target.value)} placeholder="+91 XXXXX XXXXX" />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">Address</label>
+                <input className="form-input" value={form.address || ''} onChange={(e) => handleChange('address', e.target.value)} placeholder="Street address" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">City</label>
+                <input className="form-input" value={form.city || ''} onChange={(e) => handleChange('city', e.target.value)} placeholder="City" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">State</label>
+                <input className="form-input" value={form.state || ''} onChange={(e) => handleChange('state', e.target.value)} placeholder="State" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Emergency Contact */}
+        {activeTab === 'emergency' && (
+          <div>
+            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertTriangle size={18} color="#d97706" /> Emergency Contact
+            </h3>
+            <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>
+              This person will be contacted in case of emergency during camps.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label">Contact Name</label>
+                <input className="form-input" value={form.emergencyName || ''} onChange={(e) => handleChange('emergencyName', e.target.value)} placeholder="Full name" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Relationship</label>
+                <input className="form-input" value={form.emergencyRelation || ''} onChange={(e) => handleChange('emergencyRelation', e.target.value)} placeholder="e.g. Father, Mother" />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">Emergency Phone</label>
+                <input className="form-input" value={form.emergencyPhone || ''} onChange={(e) => handleChange('emergencyPhone', e.target.value)} placeholder="+91 XXXXX XXXXX" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Medical */}
+        {activeTab === 'medical' && (
+          <div>
+            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Heart size={18} color="#dc2626" /> Medical Information
+            </h3>
+            <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>
+              Medical conditions are kept confidential and only used for camp safety screening.
+            </p>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.medicalIssues || false}
+                  onChange={(e) => handleChange('medicalIssues', e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#1e3a5f' }}
+                />
+                <span style={{ fontSize: 14, color: '#0f172a', fontWeight: 500 }}>I have a medical condition that the ANO should be aware of</span>
+              </label>
+            </div>
+            {form.medicalIssues && (
+              <div className="form-group">
+                <label className="form-label">Medical Details</label>
+                <textarea
+                  className="form-input"
+                  value={form.medicalDetails || ''}
+                  onChange={(e) => handleChange('medicalDetails', e.target.value)}
+                  placeholder="Briefly describe your medical condition..."
+                  rows={4}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+            )}
+            {!form.medicalIssues && (
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 16, marginTop: 8 }}>
+                <p style={{ color: '#15803d', fontSize: 14 }}>✓ No medical issues declared. You are eligible for all camps.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </AppShell>
+  );
+}
