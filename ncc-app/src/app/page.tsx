@@ -31,7 +31,7 @@ export default function HomePage() {
         }}>
           <span style={{ color: 'white', fontSize: 24, fontWeight: 700 }}>⚔</span>
         </div>
-        <p style={{ color: '#475569', fontSize: 14 }}>Loading NCC Portal...</p>
+        <p style={{ color: '#475569', fontSize: 14 }}>Loading NCC TCET...</p>
       </div>
     </div>
   );

@@ -1,18 +1,56 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCadetProfile, saveCadetProfile } from '@/lib/db';
 import type { CadetProfile } from '@/types';
 import toast from 'react-hot-toast';
-import { Save, User, Phone, AlertTriangle, Heart } from 'lucide-react';
+import { Save, User, Phone, AlertTriangle, Heart, AlertCircle } from 'lucide-react';
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 const BRANCHES = ['Army', 'Navy', 'Air Force'];
 const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 const GENDERS = ['Male', 'Female', 'Other'];
 
+const STATE_CITIES: Record<string, string[]> = {
+  "Andaman and Nicobar Islands": ["Port Blair"],
+  "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Tirupati"],
+  "Arunachal Pradesh": ["Itanagar", "Tawang"],
+  "Assam": ["Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Tezpur"],
+  "Bihar": ["Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia"],
+  "Chandigarh": ["Chandigarh"],
+  "Chhattisgarh": ["Raipur", "Bhilai", "Bilaspur", "Korba", "Durg"],
+  "Dadra and Nagar Haveli and Daman and Diu": ["Daman", "Diu", "Silvassa"],
+  "Delhi": ["New Delhi", "North Delhi", "South Delhi", "East Delhi", "West Delhi"],
+  "Goa": ["Panaji", "Margao", "Vasco da Gama", "Mapusa"],
+  "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar"],
+  "Haryana": ["Faridabad", "Gurugram", "Panipat", "Ambala", "Rohtak"],
+  "Himachal Pradesh": ["Shimla", "Dharamshala", "Manali", "Mandi", "Solan"],
+  "Jammu and Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla"],
+  "Jharkhand": ["Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Deoghar"],
+  "Karnataka": ["Bengaluru", "Mysuru", "Hubballi", "Mangaluru", "Belagavi"],
+  "Kerala": ["Thiruvananthapuram", "Kochi", "Kozhikode", "Thrissur", "Kollam"],
+  "Ladakh": ["Leh", "Kargil"],
+  "Lakshadweep": ["Kavaratti"],
+  "Madhya Pradesh": ["Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain"],
+  "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik", "Thane", "Aurangabad", "Navi Mumbai"],
+  "Manipur": ["Imphal"],
+  "Meghalaya": ["Shillong", "Cherrapunji"],
+  "Mizoram": ["Aizawl"],
+  "Nagaland": ["Kohima", "Dimapur"],
+  "Odisha": ["Bhubaneswar", "Cuttack", "Rourkela", "Puri", "Sambalpur"],
+  "Puducherry": ["Puducherry", "Oulgaret", "Karaikal"],
+  "Punjab": ["Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda"],
+  "Rajasthan": ["Jaipur", "Jodhpur", "Udaipur", "Kota", "Bikaner"],
+  "Sikkim": ["Gangtok"],
+  "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem"],
+  "Telangana": ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar", "Khammam"],
+  "Tripura": ["Agartala"],
+  "Uttar Pradesh": ["Lucknow", "Kanpur", "Agra", "Varanasi", "Noida", "Ghaziabad", "Prayagraj"],
+  "Uttarakhand": ["Dehradun", "Haridwar", "Roorkee", "Rishikesh", "Haldwani"],
+  "West Bengal": ["Kolkata", "Asansol", "Siliguri", "Durgapur", "Howrah"]
+};
 export default function ProfilePage() {
   const { user } = useAuth();
   const [form, setForm] = useState<Partial<CadetProfile>>({
@@ -26,6 +64,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'personal' | 'contact' | 'emergency' | 'medical'>('personal');
 
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (!user) return;
     getCadetProfile(user.uid).then((p) => {
@@ -34,17 +74,73 @@ export default function ProfilePage() {
     });
   }, [user]);
 
-  const handleChange = (field: keyof CadetProfile, value: unknown) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const handleAutoSave = async (currentForm: Partial<CadetProfile>) => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const currentMissingFields: string[] = [];
+      if (!currentForm.firstName) currentMissingFields.push('First Name');
+      if (!currentForm.lastName) currentMissingFields.push('Last Name');
+      if (!currentForm.rollNumber) currentMissingFields.push('Roll Number');
+      if (!currentForm.college) currentMissingFields.push('College');
+      if (!currentForm.dateOfBirth) currentMissingFields.push('Date of Birth');
+      if (!currentForm.phone) currentMissingFields.push('Phone Number');
+      if (!currentForm.address) currentMissingFields.push('Address');
+      if (!currentForm.city) currentMissingFields.push('City');
+      if (!currentForm.state) currentMissingFields.push('State');
+      if (!currentForm.emergencyName) currentMissingFields.push('Emergency Contact Name');
+      if (!currentForm.emergencyRelation) currentMissingFields.push('Emergency Contact Relation');
+      if (!currentForm.emergencyPhone) currentMissingFields.push('Emergency Phone');
+      if (currentForm.medicalIssues && !currentForm.medicalDetails) currentMissingFields.push('Medical Details');
+
+      const isComplete = currentMissingFields.length === 0;
+      await saveCadetProfile(user.uid, { ...currentForm, profileComplete: isComplete });
+      if (isComplete && !currentForm.profileComplete) {
+        toast.success('Profile completed successfully!');
+      }
+    } catch {
+      toast.error('Failed to auto-save profile.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const handleChange = (field: keyof CadetProfile, value: unknown) => {
+    const updatedForm = { ...form, [field]: value };
+    setForm(updatedForm);
+    
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      handleAutoSave(updatedForm);
+    }, 1000);
+  };
+
+  const missingFields: string[] = [];
+  if (!form.firstName) missingFields.push('First Name');
+  if (!form.lastName) missingFields.push('Last Name');
+  if (!form.rollNumber) missingFields.push('Roll Number');
+  if (!form.college) missingFields.push('College');
+  if (!form.dateOfBirth) missingFields.push('Date of Birth');
+  if (!form.phone) missingFields.push('Phone Number');
+  if (!form.address) missingFields.push('Address');
+  if (!form.city) missingFields.push('City');
+  if (!form.state) missingFields.push('State');
+  if (!form.emergencyName) missingFields.push('Emergency Contact Name');
+  if (!form.emergencyRelation) missingFields.push('Emergency Contact Relation');
+  if (!form.emergencyPhone) missingFields.push('Emergency Phone');
+  if (form.medicalIssues && !form.medicalDetails) missingFields.push('Medical Details');
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
     try {
-      const isComplete = !!(form.firstName && form.lastName && form.rollNumber && form.phone && form.college);
+      const isComplete = missingFields.length === 0;
       await saveCadetProfile(user.uid, { ...form, profileComplete: isComplete });
-      toast.success('Profile saved successfully!');
+      if (isComplete && !form.profileComplete) {
+        toast.success('Profile completed successfully!');
+      } else {
+        toast.success('Profile saved successfully!');
+      }
     } catch {
       toast.error('Failed to save profile.');
     } finally {
@@ -70,7 +166,7 @@ export default function ProfilePage() {
 
   return (
     <AppShell>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>My Profile</h1>
           <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Manage your personal information and contact details.</p>
@@ -80,6 +176,8 @@ export default function ProfilePage() {
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
+
+
 
       {/* Tab Navigation */}
       <div style={{
@@ -174,12 +272,37 @@ export default function ProfilePage() {
                 <input className="form-input" value={form.address || ''} onChange={(e) => handleChange('address', e.target.value)} placeholder="Street address" />
               </div>
               <div className="form-group">
-                <label className="form-label">City</label>
-                <input className="form-input" value={form.city || ''} onChange={(e) => handleChange('city', e.target.value)} placeholder="City" />
+                <label className="form-label">State</label>
+                <select 
+                  className="form-select" 
+                  value={form.state || ''} 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const updatedForm = { ...form, state: val, city: '' };
+                    setForm(updatedForm);
+                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                    timeoutRef.current = setTimeout(() => handleAutoSave(updatedForm), 1000);
+                  }}
+                >
+                  <option value="" disabled>Select State</option>
+                  {Object.keys(STATE_CITIES).map(state => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
               </div>
               <div className="form-group">
-                <label className="form-label">State</label>
-                <input className="form-input" value={form.state || ''} onChange={(e) => handleChange('state', e.target.value)} placeholder="State" />
+                <label className="form-label">City</label>
+                <select 
+                  className="form-select" 
+                  value={form.city || ''} 
+                  onChange={(e) => handleChange('city', e.target.value)}
+                  disabled={!form.state}
+                >
+                  <option value="" disabled>{form.state ? 'Select City' : 'Select State First'}</option>
+                  {form.state && STATE_CITIES[form.state]?.map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

@@ -47,6 +47,10 @@ export const saveCadetProfile = async (uid: string, data: Partial<CadetProfile>)
   await setDoc(doc(db, 'cadets', uid), { ...data, uid, updatedAt: serverTimestamp() }, { merge: true });
 };
 
+export const updateUserProfile = async (uid: string, data: any): Promise<void> => {
+  await updateDoc(doc(db, 'users', uid), data);
+};
+
 export const getAllCadets = async (): Promise<CadetProfile[]> => {
   const snap = await getDocs(collection(db, 'cadets'));
   return snap.docs.map((d) => d.data() as CadetProfile);

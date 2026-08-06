@@ -4,9 +4,9 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
-  title: 'NCC Cadet Management System',
-  description: 'National Cadet Corps — Digital platform for cadet management, skill tracking, and camp recommendations.',
-  keywords: 'NCC, National Cadet Corps, cadets, camp, military, India',
+  title: 'NCC TCET — National Cadet Corps',
+  description: 'NCC TCET Digital Management System — Skill tracking, camp recommendations, evaluations, and more.',
+  keywords: 'NCC, NCC TCET, National Cadet Corps, TCET, cadets, camp, military, India, army, navy, air force',
 };
 
 export default function RootLayout({
@@ -16,7 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head />
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      </head>
       <body>
         <AuthProvider>
           {children}

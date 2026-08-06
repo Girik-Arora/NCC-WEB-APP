@@ -34,6 +34,34 @@ export const signInWithGoogle = async (): Promise<{ user: User; isNewUser: boole
       role: 'cadet',
       createdAt: serverTimestamp(),
     });
+    const [firstName = '', lastName = ''] = (user.displayName || '').split(' ');
+
+    await setDoc(doc(db, 'cadets', user.uid), {
+      uid: user.uid,
+      firstName,
+      lastName: user.displayName?.split(' ').slice(1).join(' ') || lastName,
+      rollNumber: '',
+      college: '',
+      branch: 'Army',
+      semester: 1,
+      bloodGroup: 'O+',
+      phone: '',
+      gender: 'Male',
+      dateOfBirth: '',
+      address: '',
+      city: '',
+      state: '',
+      emergencyName: '',
+      emergencyRelation: '',
+      emergencyPhone: '',
+      medicalIssues: false,
+      medicalDetails: '',
+      profileComplete: false,
+      availability: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
     return { user, isNewUser: true };
   }
 
@@ -49,17 +77,15 @@ export interface RegisterData {
   // Personal
   firstName: string;
   lastName: string;
-  // NCC Details
-  rollNumber: string;
-  college: string;
-  branch: 'Army' | 'Navy' | 'Air Force';
-  semester: number;
   // Contact & Medical
-  bloodGroup: string;
-  phone: string;
-  dateOfBirth: string;
+  phone?: string;
+  rollNumber?: string;
+  college?: string;
+  branch?: string;
+  semester?: number;
   // ANO support
   isAno?: boolean;
+  anoRank?: string;
 }
 
 export const registerWithEmail = async (data: RegisterData): Promise<User> => {
@@ -78,6 +104,7 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
     displayName,
     photoURL: null,
     role: data.isAno ? 'ano' : 'cadet',
+    rank: data.isAno ? (data.anoRank || 'Lieutenant') : undefined,
     createdAt: serverTimestamp(),
   });
 
@@ -87,14 +114,14 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
       uid: user.uid,
       firstName: data.firstName,
       lastName: data.lastName,
-      rollNumber: data.rollNumber,
-      college: data.college,
-      branch: data.branch,
-      semester: data.semester,
-      bloodGroup: data.bloodGroup,
-      phone: data.phone,
-      gender: data.gender,
-      dateOfBirth: data.dateOfBirth,
+      rollNumber: data.rollNumber || '',
+      college: data.college || '',
+      branch: data.branch || 'Army',
+      semester: data.semester || 1,
+      bloodGroup: 'O+',
+      phone: data.phone || '',
+      gender: 'Male',
+      dateOfBirth: '',
       // Defaults
       address: '',
       city: '',
@@ -104,7 +131,7 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
       emergencyPhone: '',
       medicalIssues: false,
       medicalDetails: '',
-      profileComplete: !!(data.firstName && data.lastName && data.phone && data.rollNumber),
+      profileComplete: false,
       availability: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
