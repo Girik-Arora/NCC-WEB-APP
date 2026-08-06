@@ -154,7 +154,14 @@ function EvaluateContent() {
             {loading ? (
               <div style={{ height: 42, background: '#e2e8f0', borderRadius: 8 }} />
             ) : (
-              <select className="form-select" value={selectedCadet} onChange={(e) => setSelectedCadet(e.target.value)}>
+              <select className="form-select" value={selectedCadet} onChange={(e) => {
+                const uid = e.target.value;
+                setSelectedCadet(uid);
+                const cadet = cadets.find((c) => c.uid === uid);
+                if (cadet?.semester) {
+                  setSemester(cadet.semester);
+                }
+              }}>
                 <option value="">— Choose a cadet —</option>
                 {cadets.map((c) => (
                   <option key={c.uid} value={c.uid}>{c.firstName} {c.lastName} ({c.rollNumber})</option>
@@ -218,7 +225,7 @@ function EvaluateContent() {
                 </div>
                 {prevEval && (
                   <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                    Previous: <strong style={{ color: '#475569' }}>{(prevEval as Record<string, number>)[field.key]}/5</strong>
+                    Previous: <strong style={{ color: '#475569' }}>{(prevEval as unknown as Record<string, number>)[field.key]}/5</strong>
                   </span>
                 )}
               </div>
