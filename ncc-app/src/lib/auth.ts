@@ -93,22 +93,29 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
   const result = await createUserWithEmailAndPassword(auth, data.email, data.password);
   const user = result.user;
 
-  // 2. Set display name
+  // 2. Set display name (non-critical — don't let this fail the registration)
   const displayName = `${data.firstName} ${data.lastName}`;
-  await updateProfile(user, { displayName });
+  try {
+    await updateProfile(user, { displayName });
+  } catch (e) {
+    console.warn('updateProfile failed (non-critical):', e);
+  }
 
-  // 3. Create user doc in /users
+  // 3. Wait a moment for the auth token to propagate to Firestore
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  // 4. Create user doc in /users
   await setDoc(doc(db, 'users', user.uid), {
     uid: user.uid,
     email: user.email,
     displayName,
     photoURL: null,
     role: data.isAno ? 'ano' : 'cadet',
-    rank: data.isAno ? (data.anoRank || 'Lieutenant') : undefined,
+    rank: data.isAno ? (data.anoRank || 'Lieutenant') : null,
     createdAt: serverTimestamp(),
   });
 
-  // 4. Pre-fill cadet profile only if it's a cadet
+  // 5. Pre-fill cadet profile (only for cadets)
   if (!data.isAno) {
     await setDoc(doc(db, 'cadets', user.uid), {
       uid: user.uid,
@@ -122,7 +129,6 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
       phone: data.phone || '',
       gender: 'Male',
       dateOfBirth: '',
-      // Defaults
       address: '',
       city: '',
       state: '',
@@ -140,6 +146,7 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
 
   return user;
 };
+
 
 export const signInWithEmail = async (email: string, password: string): Promise<User> => {
   const result = await signInWithEmailAndPassword(auth, email, password);

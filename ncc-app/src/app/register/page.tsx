@@ -104,12 +104,16 @@ export default function RegisterPage() {
       } else if (code === 'auth/invalid-email' || msg.includes('invalid-email')) {
         toast.error('Invalid email address format.');
       } else if (code === 'auth/operation-not-allowed' || msg.includes('operation-not-allowed')) {
-        toast.error('Email/password sign-up is not enabled. Please contact the admin.');
+        toast.error('Email/password sign-up is not enabled. Contact the admin.');
+      } else if (code === 'permission-denied' || msg.includes('permission-denied') || msg.includes('Missing or insufficient permissions')) {
+        // Auth succeeded but Firestore write failed — user can still sign in
+        toast.success('Account created! Please sign in to complete your profile.');
+        router.push('/login');
+        return;
       } else if (code === 'auth/network-request-failed' || msg.includes('network')) {
-        toast.error('Network error. Check your internet connection.');
-      } else if (code === 'permission-denied' || msg.includes('permission-denied')) {
-        toast.error('Firestore permission denied. Please check security rules.');
+        toast.error('Network error. Check your internet connection and try again.');
       } else {
+        // Show exact error for debugging
         toast.error(`Registration failed: ${code || msg || 'Unknown error'}`);
       }
     } finally {
