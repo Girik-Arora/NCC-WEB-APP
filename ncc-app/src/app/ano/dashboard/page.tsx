@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
-import { getAllCadets } from '@/lib/db';
-import type { CadetProfile } from '@/types';
+import { getCadetsByWing } from '@/lib/db';
+import type { CadetProfile, Wing } from '@/types';
 import { Users, UserCheck, GraduationCap, Tent, TrendingUp, ArrowRight, Activity, Shield, Target, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,7 +23,8 @@ export default function ANODashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const c = await getAllCadets();
+        const branch = userProfile?.branch as Wing | undefined;
+        const c = branch ? await getCadetsByWing(branch) : [];
         setCadets(c);
       } catch (err) {
         console.error('Error loading ANO dashboard:', err);
@@ -31,8 +32,8 @@ export default function ANODashboard() {
         setLoading(false);
       }
     };
-    load();
-  }, []);
+    if (userProfile !== null) load();
+  }, [userProfile]);
 
   const totalCadets = cadets.length;
   const profileComplete = cadets.filter((c) => c.profileComplete).length;
@@ -111,7 +112,7 @@ export default function ANODashboard() {
             {rankPrefix}{userProfile?.displayName || 'Officer'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-            Officer Dashboard · Manage cadets, run evaluations, recommend for camps
+            {userProfile?.branch} Wing · Manage cadets, run evaluations, recommend for camps
           </p>
         </div>
 

@@ -11,12 +11,12 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { UserProfile } from '@/types';
+import { UserProfile, Wing, getRoleFromRank } from '@/types';
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// ─── Google Auth ─────────────────────────────────────────────────────────────
+// ─── Google Auth ──────────────────────────────────────────────────────────────
 
 export const signInWithGoogle = async (): Promise<{ user: User; isNewUser: boolean }> => {
   const result = await signInWithPopup(auth, googleProvider);
@@ -26,6 +26,7 @@ export const signInWithGoogle = async (): Promise<{ user: User; isNewUser: boole
   const userSnap = await getDoc(userRef);
 
   if (!userSnap.exists()) {
+    // New Google user — create a placeholder; onboarding form collects wing/rank
     await setDoc(userRef, {
       uid: user.uid,
       email: user.email,
@@ -34,8 +35,8 @@ export const signInWithGoogle = async (): Promise<{ user: User; isNewUser: boole
       role: 'cadet',
       createdAt: serverTimestamp(),
     });
-    const [firstName = '', lastName = ''] = (user.displayName || '').split(' ');
 
+    const [firstName = '', lastName = ''] = (user.displayName || '').split(' ');
     await setDoc(doc(db, 'cadets', user.uid), {
       uid: user.uid,
       firstName,
@@ -43,6 +44,7 @@ export const signInWithGoogle = async (): Promise<{ user: User; isNewUser: boole
       rollNumber: '',
       college: '',
       branch: 'Army',
+      nccRank: 'CDT',
       semester: 1,
       bloodGroup: 'O+',
       phone: '',
@@ -68,7 +70,7 @@ export const signInWithGoogle = async (): Promise<{ user: User; isNewUser: boole
   return { user, isNewUser: false };
 };
 
-// ─── Email / Password Auth ───────────────────────────────────────────────────
+// ─── Email / Password Auth ────────────────────────────────────────────────────
 
 export interface RegisterData {
   // Account
@@ -77,15 +79,18 @@ export interface RegisterData {
   // Personal
   firstName: string;
   lastName: string;
-  // Contact & Medical
+  // Contact & Academic
   phone?: string;
   rollNumber?: string;
   college?: string;
-  branch?: string;
   semester?: number;
-  // ANO support
+  // Wing & Rank (cadets and mod_cadets)
+  branch?: Wing;
+  nccRank?: string;
+  // ANO-specific
   isAno?: boolean;
   anoRank?: string;
+  anoBranch?: Wing;
 }
 
 export const registerWithEmail = async (data: RegisterData): Promise<User> => {
@@ -93,7 +98,7 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
   const result = await createUserWithEmailAndPassword(auth, data.email, data.password);
   const user = result.user;
 
-  // 2. Set display name (non-critical — don't let this fail the registration)
+  // 2. Set display name
   const displayName = `${data.firstName} ${data.lastName}`;
   try {
     await updateProfile(user, { displayName });
@@ -101,21 +106,34 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
     console.warn('updateProfile failed (non-critical):', e);
   }
 
-  // 3. Wait a moment for the auth token to propagate to Firestore
+  // 3. Wait for auth token to propagate
   await new Promise((resolve) => setTimeout(resolve, 800));
 
-  // 4. Create user doc in /users
+  // 4. Determine role
+  let role: 'cadet' | 'mod_cadet' | 'ano' = 'cadet';
+  if (data.isAno) {
+    role = 'ano';
+  } else if (data.branch && data.nccRank) {
+    role = getRoleFromRank(data.branch, data.nccRank);
+  }
+
+  const wing: Wing = data.isAno ? (data.anoBranch || 'Army') : (data.branch || 'Army');
+
+  // 5. Create /users doc
   await setDoc(doc(db, 'users', user.uid), {
     uid: user.uid,
     email: user.email,
     displayName,
     photoURL: null,
-    role: data.isAno ? 'ano' : 'cadet',
-    rank: data.isAno ? (data.anoRank || 'Lieutenant') : null,
+    role,
+    branch: wing,
+    ...(data.isAno
+      ? { rank: data.anoRank || 'Lieutenant' }
+      : { nccRank: data.nccRank || 'CDT' }),
     createdAt: serverTimestamp(),
   });
 
-  // 5. Pre-fill cadet profile (only for cadets)
+  // 6. Create /cadets doc (for cadets and mod_cadets)
   if (!data.isAno) {
     await setDoc(doc(db, 'cadets', user.uid), {
       uid: user.uid,
@@ -123,7 +141,8 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
       lastName: data.lastName,
       rollNumber: data.rollNumber || '',
       college: data.college || '',
-      branch: data.branch || 'Army',
+      branch: wing,
+      nccRank: data.nccRank || 'CDT',
       semester: data.semester || 1,
       bloodGroup: 'O+',
       phone: data.phone || '',
@@ -147,7 +166,6 @@ export const registerWithEmail = async (data: RegisterData): Promise<User> => {
   return user;
 };
 
-
 export const signInWithEmail = async (email: string, password: string): Promise<User> => {
   const result = await signInWithEmailAndPassword(auth, email, password);
   return result.user;
@@ -157,7 +175,7 @@ export const sendPasswordReset = async (email: string): Promise<void> => {
   await sendPasswordResetEmail(auth, email);
 };
 
-// ─── Common ──────────────────────────────────────────────────────────────────
+// ─── Common ───────────────────────────────────────────────────────────────────
 
 export const signOutUser = async (): Promise<void> => {
   await signOut(auth);

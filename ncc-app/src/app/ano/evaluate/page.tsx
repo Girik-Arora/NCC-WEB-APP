@@ -3,8 +3,8 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
-import { getAllCadets, getCadetEvaluations, saveEvaluation } from '@/lib/db';
-import type { CadetProfile, SemesterEvaluation } from '@/types';
+import { getCadetsByWing, getCadetEvaluations, saveEvaluation } from '@/lib/db';
+import type { CadetProfile, SemesterEvaluation, Wing } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { Save, ChevronDown, User } from 'lucide-react';
@@ -58,9 +58,10 @@ function StarInput({ value, onChange }: { value: number; onChange: (v: number) =
 }
 
 function EvaluateContent() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const searchParams = useSearchParams();
   const preselectedCadet = searchParams.get('cadet');
+  const anoBranch = user?.uid ? userProfile?.branch as Wing | undefined : undefined;
 
   const [cadets, setCadets] = useState<CadetProfile[]>([]);
   const [selectedCadet, setSelectedCadet] = useState(preselectedCadet || '');
@@ -76,8 +77,9 @@ function EvaluateContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getAllCadets().then((c) => { setCadets(c.filter((x) => x.profileComplete)); setLoading(false); });
-  }, []);
+    if (!anoBranch) return;
+    getCadetsByWing(anoBranch).then((c) => { setCadets(c); setLoading(false); });
+  }, [anoBranch]);
 
   useEffect(() => {
     if (!selectedCadet) return;
@@ -131,7 +133,9 @@ function EvaluateContent() {
     <AppShell requiredRole={['ano', 'admin']}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>Semester Evaluation</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>
+            {anoBranch ? `${anoBranch} Wing ` : ''}Semester Evaluation
+          </h1>
           <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Rate cadet performance across 8 dimensions. ~5 minutes per cadet.</p>
         </div>
         {allRated && (

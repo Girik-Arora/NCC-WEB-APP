@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
-import { getAllCadets, getCadetSkills } from '@/lib/db';
-import type { CadetProfile, Skill } from '@/types';
+import { getCadetsByWing, getCadetSkills } from '@/lib/db';
+import type { CadetProfile, Skill, Wing } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { Search, Star, ChevronRight, Zap } from 'lucide-react';
 
@@ -17,6 +18,7 @@ const QUICK_SEARCHES = [
 ];
 
 export default function SearchPage() {
+  const { userProfile } = useAuth();
   const [cadets, setCadets] = useState<CadetWithSkills[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -25,15 +27,17 @@ export default function SearchPage() {
 
   useEffect(() => {
     const load = async () => {
-      const profiles = await getAllCadets();
+      const branch = userProfile?.branch as Wing | undefined;
+      if (!branch) return;
+      const profiles = await getCadetsByWing(branch);
       const enriched = await Promise.all(
         profiles.map(async (p) => ({ ...p, skills: await getCadetSkills(p.uid) }))
       );
       setCadets(enriched);
       setLoading(false);
     };
-    load();
-  }, []);
+    if (userProfile !== null) load();
+  }, [userProfile]);
 
   const handleSearch = (q: string) => {
     const term = q.toLowerCase().trim();
@@ -59,7 +63,9 @@ export default function SearchPage() {
   return (
     <AppShell requiredRole={['ano', 'admin']}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>Search Cadets</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>
+          Search {userProfile?.branch} Wing Cadets
+        </h1>
         <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
           Instantly search by name, skill, branch, college, or roll number.
         </p>

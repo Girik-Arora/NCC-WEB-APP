@@ -39,3 +39,31 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ===== SECURITY: Firebase Admin SDK private key =====
+ncc-portal-73ed8-firebase-adminsdk-fbsvc-63e2d80d02.json
+*firebase-adminsdk*.json
+
+# ===== Large binary / OCR training data =====
+*.traineddata
+
+# ===== Python dev scripts (not part of web app) =====
+*.py
+
+# ===== Test & scratch scripts =====
+test.js
+test2.js
+test-api.js
+test-download.js
+test-drive.js
+test-gemini.js
+test-gemini2.js
+test-tesseract.js
+
+# ===== Binary documents =====
+*.docx
+
+# ===== Agent config (local only) =====
+.agents/
+.claude/
+CLAUDE.md

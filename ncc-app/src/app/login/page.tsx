@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signInWithGoogle, signInWithEmail, sendPasswordReset, getUserProfile } from '@/lib/auth';
 import { saveCadetProfile } from '@/lib/db';
+import { RANKS_BY_WING, RANK_LABELS, getRoleFromRank } from '@/types';
+import type { Wing } from '@/types';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, Mail, Lock, ArrowRight, ChevronRight, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 
 const NCC_LOGO = 'https://res.cloudinary.com/dxxvewmf5/image/upload/v1786034608/ncclogo_eitfib.webp';
 
@@ -19,14 +21,28 @@ export default function LoginPage() {
   const [forgotMode, setForgotMode] = useState(false);
   const [googleOnboardingUser, setGoogleOnboardingUser] = useState<any>(null);
   const [onboardForm, setOnboardForm] = useState({
-    rollNumber: '', college: '', phone: '', branch: 'Army', semester: 1
+    rollNumber: '', college: '', phone: '', branch: 'Army' as Wing, nccRank: 'CDT', semester: 1
   });
   const router = useRouter();
 
+  // Ranks available for selected wing in onboarding
+  const onboardRanks = useMemo(() => {
+    const { mod, cadet } = RANKS_BY_WING[onboardForm.branch];
+    return [...mod, ...cadet];
+  }, [onboardForm.branch]);
+
+  const onboardIsModRank = useMemo(() => {
+    return getRoleFromRank(onboardForm.branch, onboardForm.nccRank) === 'mod_cadet';
+  }, [onboardForm.branch, onboardForm.nccRank]);
+
   const redirectByRole = async (uid: string) => {
     const profile = await getUserProfile(uid);
-    if (profile?.role === 'ano' || profile?.role === 'admin') {
+    if (profile?.role === 'admin') {
+      router.push('/admin/dashboard');
+    } else if (profile?.role === 'ano') {
       router.push('/ano/dashboard');
+    } else if (profile?.role === 'mod_cadet') {
+      router.push('/mod-cadet/dashboard');
     } else {
       router.push('/cadet/dashboard');
     }
@@ -44,7 +60,9 @@ export default function LoginPage() {
         await redirectByRole(user.uid);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Google login failed.');
+      const code = (err as { code?: string })?.code ?? '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+      toast.error('Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -58,16 +76,30 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
+      const role = getRoleFromRank(onboardForm.branch, onboardForm.nccRank);
+      // Update user doc with correct role, branch, nccRank
+      const { updateDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      await updateDoc(doc(db, 'users', googleOnboardingUser.uid), {
+        role,
+        branch: onboardForm.branch,
+        nccRank: onboardForm.nccRank,
+      });
       await saveCadetProfile(googleOnboardingUser.uid, {
         rollNumber: onboardForm.rollNumber,
         college: onboardForm.college,
         phone: onboardForm.phone,
-        branch: onboardForm.branch as 'Army' | 'Navy' | 'Air Force',
+        branch: onboardForm.branch,
+        nccRank: onboardForm.nccRank,
         semester: onboardForm.semester,
         profileComplete: false,
       });
       toast.success('Account setup complete!');
-      await redirectByRole(googleOnboardingUser.uid);
+      if (role === 'mod_cadet') {
+        router.push('/mod-cadet/dashboard');
+      } else {
+        router.push('/cadet/dashboard');
+      }
     } catch (err: unknown) {
       toast.error('Failed to save details.');
       setLoading(false);
@@ -411,6 +443,36 @@ export default function LoginPage() {
           {/* ── Google Onboarding Form ── */}
           {googleOnboardingUser && (
             <form onSubmit={handleOnboardingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Wing + Rank */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Wing *</label>
+                  <select className="form-select" value={onboardForm.branch} onChange={(e) => {
+                    const w = e.target.value as Wing;
+                    const { cadet } = RANKS_BY_WING[w];
+                    setOnboardForm({ ...onboardForm, branch: w, nccRank: cadet[cadet.length - 1] });
+                  }}>
+                    {(['Army', 'Navy', 'Air Force'] as Wing[]).map((w) => (
+                      <option key={w} value={w}>{w} Wing</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">NCC Rank *</label>
+                  <select className="form-select" value={onboardForm.nccRank} onChange={(e) => setOnboardForm({ ...onboardForm, nccRank: e.target.value })}>
+                    <optgroup label="Senior Cadet">
+                      {RANKS_BY_WING[onboardForm.branch]?.mod.map((r) => <option key={r} value={r}>{RANK_LABELS[r] || r}</option>)}
+                    </optgroup>
+                    <optgroup label="Cadet">
+                      {RANKS_BY_WING[onboardForm.branch]?.cadet.map((r) => <option key={r} value={r}>{RANK_LABELS[r] || r}</option>)}
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+              {/* Role preview */}
+              <div style={{ padding: '8px 12px', borderRadius: 8, background: onboardIsModRank ? '#fffbeb' : '#f0f9ff', border: `1px solid ${onboardIsModRank ? '#fbbf24' : '#bae6fd'}`, fontSize: 12, color: onboardIsModRank ? '#92400e' : '#0369a1' }}>
+                {onboardIsModRank ? '⭐ Senior Cadet (Moderator) — you can verify junior cadet submissions' : '🎗️ Regular Cadet — standard portal access'}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Roll Number *</label>

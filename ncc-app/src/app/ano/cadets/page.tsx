@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
-import { getAllCadets, getCadetSkills, getCadetAchievements, getCampHistory } from '@/lib/db';
-import type { CadetProfile, Skill } from '@/types';
+import { getCadetsByWing, getCadetVerifiedSkills, getCadetAchievements, getCampHistory } from '@/lib/db';
+import type { CadetProfile, Skill, Wing } from '@/types';
 import Link from 'next/link';
 import { Search, User, Star, Tent, GraduationCap, ChevronRight, Filter } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CadetWithSkills extends CadetProfile {
   skills: Skill[];
@@ -14,6 +15,7 @@ interface CadetWithSkills extends CadetProfile {
 }
 
 export default function CadetsPage() {
+  const { userProfile } = useAuth();
   const [cadets, setCadets] = useState<CadetWithSkills[]>([]);
   const [filtered, setFiltered] = useState<CadetWithSkills[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,13 +23,17 @@ export default function CadetsPage() {
   const [branchFilter, setBranchFilter] = useState('All');
   const [semFilter, setSemFilter] = useState('All');
 
+  const anoBranch = userProfile?.branch as Wing | undefined;
+
   useEffect(() => {
     const load = async () => {
-      const profiles = await getAllCadets();
+      if (!anoBranch) return;
+      // Only show cadets from the ANO's wing
+      const profiles = await getCadetsByWing(anoBranch);
       const enriched = await Promise.all(
         profiles.map(async (p) => {
           const [skills, achievements, camps] = await Promise.all([
-            getCadetSkills(p.uid),
+            getCadetVerifiedSkills(p.uid),  // only verified skills
             getCadetAchievements(p.uid),
             getCampHistory(p.uid),
           ]);
@@ -38,8 +44,8 @@ export default function CadetsPage() {
       setFiltered(enriched);
       setLoading(false);
     };
-    load();
-  }, []);
+    if (userProfile !== null) load();
+  }, [userProfile, anoBranch]);
 
   useEffect(() => {
     let result = cadets;
@@ -63,8 +69,10 @@ export default function CadetsPage() {
   return (
     <AppShell requiredRole={['ano', 'admin']}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>Cadets</h1>
-        <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>{cadets.length} total cadets registered.</p>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>
+          {anoBranch} Wing Cadets
+        </h1>
+        <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>{cadets.length} cadets in your wing with verified submissions.</p>
       </div>
 
       {/* Search and filters */}

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
-import { getAllCadets, getAllEvaluations, getCadetSkills } from '@/lib/db';
-import type { CadetProfile, SemesterEvaluation, Skill } from '@/types';
+import { getCadetsByWing, getEvaluationsByWing, getCadetSkills } from '@/lib/db';
+import type { CadetProfile, SemesterEvaluation, Skill, Wing } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend,
@@ -13,6 +14,7 @@ import { BarChart2, Users, Star, Tent, TrendingUp } from 'lucide-react';
 const CHART_COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#dc2626', '#0891b2'];
 
 export default function AnalyticsPage() {
+  const { userProfile } = useAuth();
   const [cadets, setCadets] = useState<CadetProfile[]>([]);
   const [evaluations, setEvaluations] = useState<SemesterEvaluation[]>([]);
   const [allSkills, setAllSkills] = useState<{ uid: string; skills: Skill[] }[]>([]);
@@ -20,7 +22,9 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [c, e] = await Promise.all([getAllCadets(), getAllEvaluations()]);
+      const branch = userProfile?.branch as Wing | undefined;
+      if (!branch) return;
+      const [c, e] = await Promise.all([getCadetsByWing(branch), getEvaluationsByWing(branch)]);
       setCadets(c);
       setEvaluations(e);
 
@@ -31,8 +35,8 @@ export default function AnalyticsPage() {
       setAllSkills(skillsData);
       setLoading(false);
     };
-    load();
-  }, []);
+    if (userProfile !== null) load();
+  }, [userProfile]);
 
   // Branch distribution
   const branchData = cadets.reduce((acc, c) => {
@@ -54,7 +58,7 @@ export default function AnalyticsPage() {
     };
     return fields.map((f) => ({
       field: labels[f],
-      avg: parseFloat((evaluations.reduce((s, e) => s + (e as Record<string, number>)[f], 0) / evaluations.length).toFixed(2)),
+      avg: parseFloat((evaluations.reduce((s, e) => s + (e as unknown as Record<string, number>)[f], 0) / evaluations.length).toFixed(2)),
     }));
   })();
 
@@ -115,7 +119,9 @@ export default function AnalyticsPage() {
   return (
     <AppShell requiredRole={['ano', 'admin']}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>Analytics</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>
+          {userProfile?.branch} Wing Analytics
+        </h1>
         <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Performance trends, skill distribution, and cadet statistics.</p>
       </div>
 
@@ -140,7 +146,7 @@ export default function AnalyticsPage() {
           {branchData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={branchData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                <Pie data={branchData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}>
                   {branchData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Pie>
                 <Tooltip />

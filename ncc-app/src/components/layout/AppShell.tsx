@@ -49,8 +49,12 @@ export default function AppShell({ children, requiredRole }: AppShellProps) {
     if (requiredRole) {
       const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
       if (userProfile && !roles.includes(userProfile.role)) {
-        if (userProfile.role === 'ano' || userProfile.role === 'admin') {
+        if (userProfile.role === 'admin') {
+          router.replace('/admin/dashboard');
+        } else if (userProfile.role === 'ano') {
           router.replace('/ano/dashboard');
+        } else if (userProfile.role === 'mod_cadet') {
+          router.replace('/mod-cadet/dashboard');
         } else {
           router.replace('/cadet/dashboard');
         }

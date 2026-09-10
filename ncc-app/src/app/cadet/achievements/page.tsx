@@ -4,9 +4,19 @@ import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCadetAchievements, addAchievement, deleteAchievement } from '@/lib/db';
-import type { Achievement } from '@/types';
+import type { Achievement, VerificationStatus } from '@/types';
 import toast from 'react-hot-toast';
-import { Plus, Trophy, Trash2, X, Calendar, CloudOff } from 'lucide-react';
+import { Plus, Trophy, Trash2, X, Calendar, CloudOff, AlertCircle } from 'lucide-react';
+
+function StatusBadge({ status, reason }: { status?: VerificationStatus; reason?: string }) {
+  if (status === 'verified') return <span className="badge badge-green" style={{fontSize: 11}}>Verified</span>;
+  if (status === 'rejected') return (
+    <span className="badge badge-red" style={{fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4}} title={reason}>
+      <AlertCircle size={12}/> Rejected
+    </span>
+  );
+  return <span className="badge badge-yellow" style={{fontSize: 11}}>Pending</span>;
+}
 
 function AddModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: Omit<Achievement, 'id' | 'uid' | 'createdAt'>) => Promise<void> }) {
   const [form, setForm] = useState({ title: '', description: '', date: '', certificateUrl: '' });
@@ -123,7 +133,10 @@ export default function AchievementsPage() {
                     <Trophy size={18} color="#d97706" />
                   </div>
                   <div>
-                    <h3 style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', lineHeight: 1.3 }}>{a.title}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <h3 style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', lineHeight: 1.3 }}>{a.title}</h3>
+                      <StatusBadge status={a.verificationStatus} reason={a.rejectionReason} />
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, color: '#94a3b8', fontSize: 12 }}>
                       <Calendar size={12} />{a.date}
                     </div>
@@ -139,6 +152,11 @@ export default function AchievementsPage() {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#2563eb', textDecoration: 'none', background: '#eff6ff', padding: '6px 12px', borderRadius: 6 }}>
                   View Document
                 </a>
+              )}
+              {a.verificationStatus === 'rejected' && a.rejectionReason && (
+                <div style={{ marginTop: 12, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 13, color: '#991b1b' }}>
+                  <strong>Rejection Reason:</strong> {a.rejectionReason}
+                </div>
               )}
             </div>
           ))}

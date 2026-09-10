@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   useEffect(() => {
-    if (!user || userProfile?.role !== 'cadet') {
+    if (!user || (userProfile?.role !== 'cadet' && userProfile?.role !== 'mod_cadet')) {
       setCadetProfile(null);
       return;
     }

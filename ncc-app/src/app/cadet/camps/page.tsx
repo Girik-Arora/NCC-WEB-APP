@@ -4,9 +4,19 @@ import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCampHistory, addCampRecord, deleteCampRecord } from '@/lib/db';
-import type { CampRecord, CampType, Grade } from '@/types';
+import type { CampRecord, CampType, Grade, VerificationStatus } from '@/types';
 import toast from 'react-hot-toast';
-import { Plus, Tent, Trash2, Award, X, CloudOff } from 'lucide-react';
+import { Plus, Tent, Trash2, Award, X, CloudOff, AlertCircle } from 'lucide-react';
+
+function StatusBadge({ status, reason }: { status?: VerificationStatus; reason?: string }) {
+  if (status === 'verified') return <span className="badge badge-green" style={{fontSize: 11}}>Verified</span>;
+  if (status === 'rejected') return (
+    <span className="badge badge-red" style={{fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4}} title={reason}>
+      <AlertCircle size={12}/> Rejected
+    </span>
+  );
+  return <span className="badge badge-yellow" style={{fontSize: 11}}>Pending</span>;
+}
 
 const CAMP_TYPES: CampType[] = ['CATC', 'NIC', 'SNIC', 'RDC', 'Trekking', 'Sailing', 'Army Attachment', 'Navy Attachment', 'Air Attachment'];
 const GRADES: Grade[] = ['A', 'B', 'C', 'Pass'];
@@ -156,6 +166,7 @@ export default function CampsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: color, color: 'white' }}>{camp.campType}</span>
                           <span className={`badge badge-${camp.grade === 'A' ? 'green' : camp.grade === 'B' ? 'yellow' : 'gray'}`}>Grade {camp.grade}</span>
+                          <StatusBadge status={camp.verificationStatus} reason={camp.rejectionReason} />
                         </div>
                         <h3 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 4 }}>{camp.campType} — {camp.year}</h3>
                         {camp.location && <p style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>📍 {camp.location}</p>}
@@ -165,6 +176,11 @@ export default function CampsPage() {
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#2563eb', textDecoration: 'none', background: '#eff6ff', padding: '6px 12px', borderRadius: 6, marginTop: 4 }}>
                             View Certificate
                           </a>
+                        )}
+                        {camp.verificationStatus === 'rejected' && camp.rejectionReason && (
+                          <div style={{ marginTop: 12, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 13, color: '#991b1b' }}>
+                            <strong>Rejection Reason:</strong> {camp.rejectionReason}
+                          </div>
                         )}
                       </div>
                       <button onClick={() => handleDelete(camp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', padding: 4 }}>

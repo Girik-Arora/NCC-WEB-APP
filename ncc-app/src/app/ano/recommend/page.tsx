@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { runCampRecommendation } from '@/lib/db';
-import type { RecommendedCadet } from '@/types';
+import type { RecommendedCadet, Wing } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { Compass, Play, Medal, Star, GraduationCap, ChevronRight, Anchor, Mountain, Shield, Tent } from 'lucide-react';
 
@@ -59,6 +60,7 @@ const CAMP_OPTIONS = [
 ];
 
 export default function RecommendPage() {
+  const { userProfile } = useAuth();
   const [selectedCamp, setSelectedCamp] = useState('');
   const [seats, setSeats] = useState(5);
   const [running, setRunning] = useState(false);
@@ -69,7 +71,8 @@ export default function RecommendPage() {
     if (!selectedCamp) { toast.error('Please select a camp type.'); return; }
     setRunning(true);
     try {
-      const res = await runCampRecommendation(selectedCamp, seats);
+      const branch = userProfile?.branch as Wing | undefined;
+      const res = await runCampRecommendation(selectedCamp, seats, branch);
       setResults(res);
       setRan(true);
       if (res.length === 0) {
@@ -96,7 +99,9 @@ export default function RecommendPage() {
           }}>
             <Compass size={20} color="white" />
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>Camp Recommendation Engine</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>
+            {userProfile?.branch ? `${userProfile.branch} Wing ` : ''}Camp Recommendation Engine
+          </h1>
         </div>
         <p style={{ color: '#64748b', fontSize: 14 }}>
           Select a camp type and number of seats. The system will rank eligible cadets using skills, evaluations, and attendance.

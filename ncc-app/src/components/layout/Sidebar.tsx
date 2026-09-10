@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { signOutUser } from '@/lib/auth';
+import { RANK_LABELS } from '@/types';
 import toast from 'react-hot-toast';
 import {
   LayoutDashboard, User, Star, Trophy, Tent, Calendar,
   LogOut, ChevronLeft, ChevronRight, Users, Search,
   BarChart2, ClipboardList, Compass, Settings, Menu,
-  GraduationCap,
+  GraduationCap, Shield, ShieldCheck, Zap
 } from 'lucide-react';
 
 const NCC_LOGO = 'https://res.cloudinary.com/dxxvewmf5/image/upload/v1786034608/ncclogo_eitfib.webp';
@@ -41,6 +42,17 @@ const cadetLinks: NavLink[] = [
   { href: '/cadet/achievements',  label: 'Achievements', icon: <Trophy size={18} /> },
   { href: '/cadet/camps',         label: 'Camp History', icon: <Tent size={18} /> },
   { href: '/cadet/availability',  label: 'Availability', icon: <Calendar size={18} /> },
+  { href: '/cadet/auto-lodge',    label: 'Auto-Lodge',   icon: <Zap size={18} color="#eab308" /> },
+];
+
+const modCadetLinks: NavLink[] = [
+  { href: '/mod-cadet/dashboard',    label: 'Dashboard',      icon: <LayoutDashboard size={18} /> },
+  { href: '/mod-cadet/skills',       label: 'My Skills',      icon: <Star size={18} /> },
+  { href: '/mod-cadet/achievements', label: 'My Achievements', icon: <Trophy size={18} /> },
+  { href: '/mod-cadet/camps',        label: 'Camp History',   icon: <Tent size={18} /> },
+  { href: '/mod-cadet/availability', label: 'Availability',   icon: <Calendar size={18} /> },
+  { href: '/mod-cadet/dashboard?tab=verify', label: 'Verify Cadets', icon: <ShieldCheck size={18} /> },
+  { href: '/cadet/auto-lodge',       label: 'Auto-Lodge',     icon: <Zap size={18} color="#eab308" /> },
 ];
 
 const anoLinks: NavLink[] = [
@@ -51,6 +63,17 @@ const anoLinks: NavLink[] = [
   { href: '/ano/evaluate',   label: 'Evaluate',         icon: <ClipboardList size={18} /> },
   { href: '/ano/analytics',  label: 'Analytics',        icon: <BarChart2 size={18} /> },
 ];
+
+const adminLinks: NavLink[] = [
+  { href: '/admin/dashboard',    label: 'Dashboard',    icon: <LayoutDashboard size={18} /> },
+  { href: '/admin/users',        label: 'Users',        icon: <Shield size={18} /> },
+  { href: '/admin/cadets',       label: 'Cadets',       icon: <Users size={18} /> },
+  { href: '/admin/camps',        label: 'Camps',        icon: <Tent size={18} /> },
+  { href: '/admin/skills',       label: 'Skills',       icon: <Star size={18} /> },
+  { href: '/admin/achievements', label: 'Achievements', icon: <Trophy size={18} /> },
+  { href: '/admin/evaluations',  label: 'Evaluations',  icon: <ClipboardList size={18} /> },
+];
+
 
 interface SidebarProps {
   isMobileOpen?: boolean;
@@ -69,8 +92,11 @@ export default function Sidebar({
   const router = useRouter();
   const { user, userProfile } = useAuth();
 
-  const isAno = userProfile?.role === 'ano' || userProfile?.role === 'admin';
-  const links = isAno ? anoLinks : cadetLinks;
+  const isAdmin = userProfile?.role === 'admin';
+  const isAno = userProfile?.role === 'ano';
+  const isMod = userProfile?.role === 'mod_cadet';
+
+  const links = isAdmin ? adminLinks : isAno ? anoLinks : isMod ? modCadetLinks : cadetLinks;
 
   const handleSignOut = async () => {
     await signOutUser();
@@ -84,6 +110,11 @@ export default function Sidebar({
 
   const rankPrefix = isAno && userProfile?.rank
     ? (RANK_ABBREVIATIONS[userProfile.rank] || userProfile.rank) + ' '
+    : '';
+
+  // NCC rank label for cadets/mod_cadets
+  const nccRankLabel = (isMod || userProfile?.role === 'cadet') && userProfile?.nccRank
+    ? (userProfile.nccRank)
     : '';
 
   const sidebarClass = [
@@ -153,7 +184,7 @@ export default function Sidebar({
         <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
           {!isDesktopCollapsed && (
             <div className="sidebar-section-label">
-              {isAno ? 'Officer Tools' : 'Navigation'}
+              {isAdmin ? 'System Admin' : isAno ? 'Officer Tools' : isMod ? 'Senior Cadet' : 'Navigation'}
             </div>
           )}
 
@@ -187,7 +218,7 @@ export default function Sidebar({
           <div
             className="sidebar-user-card"
             onClick={() => {
-              router.push(isAno ? '/ano/profile' : '/cadet/profile');
+              router.push(isAdmin ? '/admin/dashboard' : (isAno ? '/ano/profile' : '/cadet/profile'));
               if (isMobileOpen) onMobileClose();
             }}
             title={isDesktopCollapsed ? `${rankPrefix}${userProfile?.displayName || 'Profile'}` : undefined}
@@ -209,7 +240,12 @@ export default function Sidebar({
                   {rankPrefix}{userProfile?.displayName || user?.displayName || 'User'}
                 </div>
                 <div className="role-badge">
-                  {isAno ? '★ Officer' : '◆ Cadet'}
+                  {isAdmin ? '🛡️ Admin' : isAno
+                    ? `★ ${userProfile?.branch || ''} Officer`
+                    : isMod
+                    ? `⭐ ${nccRankLabel || 'Senior Cadet'} · ${userProfile?.branch || ''}`
+                    : `◆ Cadet · ${userProfile?.branch || ''}`
+                  }
                 </div>
               </div>
             )}

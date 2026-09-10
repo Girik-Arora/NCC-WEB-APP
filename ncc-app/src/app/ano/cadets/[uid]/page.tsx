@@ -22,7 +22,7 @@ export default function CadetDetailPage() {
   const [camps, setCamps] = useState<CampRecord[]>([]);
   const [evaluations, setEvaluations] = useState<SemesterEvaluation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'skills' | 'camps' | 'evaluations'>('overview');
+  const [tab, setTab] = useState<'overview' | 'skills' | 'camps' | 'evaluations' | 'achievements'>('overview');
 
   useEffect(() => {
     const load = async () => {

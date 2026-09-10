@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCadetSkills, saveCadetSkills, uploadFile } from '@/lib/db';
-import type { Skill, SkillLevel } from '@/types';
+import type { Skill, SkillLevel, VerificationStatus } from '@/types';
 import toast from 'react-hot-toast';
-import { Save, Star, X, Check, CloudOff } from 'lucide-react';
+import { Save, Star, X, Check, CloudOff, AlertCircle } from 'lucide-react';
 
 const SKILL_CATEGORIES = [
   { category: 'Water Sports', skills: ['Swimming', 'Sailing', 'Boat Pulling', 'Kayaking'] },
@@ -31,6 +31,16 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: SkillLev
   );
 }
 
+function StatusBadge({ status, reason }: { status?: VerificationStatus; reason?: string }) {
+  if (status === 'verified') return <span className="badge badge-green" style={{fontSize: 11}}>Verified</span>;
+  if (status === 'rejected') return (
+    <span className="badge badge-red" style={{fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4}} title={reason}>
+      <AlertCircle size={12}/> Rejected
+    </span>
+  );
+  return <span className="badge badge-yellow" style={{fontSize: 11}}>Pending</span>;
+}
+
 export default function SkillsPage() {
   const { user } = useAuth();
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -50,7 +60,7 @@ export default function SkillsPage() {
     if (hasSkill(name)) {
       setSkills((prev) => prev.filter((s) => s.name !== name));
     } else {
-      setSkills((prev) => [...prev, { id: `${name}-${Date.now()}`, name, category, level: 3, addedAt: new Date() }]);
+      setSkills((prev) => [...prev, { id: `${name}-${Date.now()}`, name, category, level: 3, addedAt: new Date(), verificationStatus: 'pending' }]);
     }
   };
 
@@ -105,6 +115,7 @@ export default function SkillsPage() {
               <span key={skill.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#1e3a5f', color: 'white', borderRadius: 20, fontSize: 13, fontWeight: 500 }}>
                 {skill.name}
                 <span style={{ color: '#93c5fd', fontSize: 12 }}>{'★'.repeat(skill.level)}</span>
+                <StatusBadge status={skill.verificationStatus} reason={skill.rejectionReason} />
                 <button onClick={() => toggleSkill(skill.name, skill.category)} style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
                   <X size={14} />
                 </button>
@@ -128,7 +139,10 @@ export default function SkillsPage() {
                       <div style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${selected ? '#2563eb' : '#cbd5e1'}`, background: selected ? '#2563eb' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', flexShrink: 0 }}>
                         {selected && <Check size={14} color="white" />}
                       </div>
-                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: selected ? '#1e3a5f' : '#475569' }}>{skillName}</span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: selected ? '#1e3a5f' : '#475569', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {skillName}
+                        {selected && <StatusBadge status={skill?.verificationStatus} reason={skill?.rejectionReason} />}
+                      </span>
                     </div>
                     {selected && (
                       <div style={{ padding: '0 16px 14px 52px' }}>
@@ -144,6 +158,12 @@ export default function SkillsPage() {
                             </a>
                           )}
                         </div>
+
+                        {skill!.verificationStatus === 'rejected' && skill!.rejectionReason && (
+                          <div style={{ marginTop: 12, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 13, color: '#991b1b' }}>
+                            <strong>Rejection Reason:</strong> {skill!.rejectionReason}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
