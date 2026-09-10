@@ -1,9 +1,9 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { UserProfile, CadetProfile } from '@/types';
 
 interface AuthContextType {
@@ -25,35 +25,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [cadetProfile, setCadetProfile] = useState<CadetProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Safety net: never hang on loading screen more than 5s
+  useEffect(() => {
+    timeoutRef.current = setTimeout(() => setLoading(false), 5000);
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, []);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+
       if (!firebaseUser) {
         setUserProfile(null);
+        setCadetProfile(null);
         setLoading(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        return;
+      }
+
+      // Fast path: fetch profile once immediately (no waiting for snapshot)
+      try {
+        const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (snap.exists()) setUserProfile(snap.data() as UserProfile);
+      } catch (_) {
+        // ignore — real-time listener below will catch it
+      } finally {
+        setLoading(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
 
+  // Real-time profile listener (runs after first fast load)
   useEffect(() => {
     if (!user) return;
-    
-    // Listen to profile changes in real-time
+
     const unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         setUserProfile(docSnap.data() as UserProfile);
       } else {
         setUserProfile(null);
       }
-      setLoading(false);
     });
 
     return () => unsubscribeProfile();
   }, [user]);
 
+  // Cadet profile listener
   useEffect(() => {
     if (!user || (userProfile?.role !== 'cadet' && userProfile?.role !== 'mod_cadet')) {
       setCadetProfile(null);
