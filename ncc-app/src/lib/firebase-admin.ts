@@ -13,6 +13,10 @@ if (!getApps().length) {
       console.warn('FIREBASE_SERVICE_ACCOUNT_KEY is not defined. Admin functions will not work.');
     } else {
       const serviceAccount = JSON.parse(serviceAccountKey);
+      // Fix double-escaped newlines in private key (common when storing JSON as a Vercel env var)
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
       app = initializeApp({
         credential: cert(serviceAccount),
       });

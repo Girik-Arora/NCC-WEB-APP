@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAllCadets, getCadetsByWing, getCadetSkills, getCadetAchievements, getCampHistory, getPendingVerifications, verifySkill, verifyAchievement, verifyCampRecord } from '@/lib/db';
 import type { CadetProfile, PendingVerificationItem, Wing } from '@/types';
@@ -19,7 +19,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 
 type Tab = 'my-profile' | 'verify';
 
-export default function ModCadetDashboard() {
+function ModCadetDashboard() {
   const { userProfile } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -330,5 +330,13 @@ export default function ModCadetDashboard() {
 
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} } .skeleton { border-radius: 12px; background: var(--bg-secondary); animation: pulse 1.5s ease-in-out infinite; }`}</style>
     </AppShell>
+  );
+}
+
+export default function ModCadetDashboardPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, fontFamily: 'Inter, sans-serif', color: 'var(--text-muted)' }}>Loading...</div>}>
+      <ModCadetDashboard />
+    </Suspense>
   );
 }
