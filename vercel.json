@@ -1,6 +1,0 @@
-{
-  "buildCommand": "cd ncc-app && npm install && npm run build",
-  "outputDirectory": "ncc-app/.next",
-  "installCommand": "cd ncc-app && npm install",
-  "framework": "nextjs"
-}
