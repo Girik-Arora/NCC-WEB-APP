@@ -3,6 +3,9 @@ import { exec } from 'child_process';
 import util from 'util';
 import path from 'path';
 
+// Prevent Next.js from statically pre-rendering this route at build time
+export const dynamic = 'force-dynamic';
+
 const execPromise = util.promisify(exec);
 
 export async function POST(req: Request) {
