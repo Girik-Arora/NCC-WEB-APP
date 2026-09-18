@@ -10,8 +10,10 @@ import {
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   Timestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
@@ -20,12 +22,32 @@ import type {
   Skill,
   Achievement,
   CampRecord,
+  CampEvent,
   SemesterEvaluation,
   RecommendedCadet,
   UserProfile,
   Wing,
   VerificationStatus,
   PendingVerificationItem,
+  ParadeSession,
+  AttendanceRecord,
+  AttendanceStatus,
+  TrainingSession,
+  NccEvent,
+  Announcement,
+  AnnouncementTarget,
+  NccDocument,
+  InventoryItem,
+  InventoryIssue,
+  MedicalRecord,
+  PromotionRecord,
+  EnrollmentApplication,
+  ApplicationStatus,
+  FinanceRecord,
+  AlumniProfile,
+  AuditLog,
+  AuditAction,
+  UserRole,
 } from '@/types';
 
 // ─── File Upload ──────────────────────────────────────────────────────────────
@@ -37,6 +59,36 @@ export const uploadFile = async (
   _onProgress?: (progress: number) => void
 ): Promise<string> => {
   throw new Error('STORAGE_UNAVAILABLE');
+};
+
+// ─── Audit Logging ────────────────────────────────────────────────────────────
+
+export const writeAuditLog = async (
+  actorUid: string,
+  actorName: string,
+  actorRole: UserRole,
+  action: AuditAction,
+  module: string,
+  targetId?: string,
+  targetDescription?: string,
+  details?: string
+): Promise<void> => {
+  try {
+    await addDoc(collection(db, 'audit_logs'), {
+      actorUid, actorName, actorRole, action, module,
+      targetId, targetDescription, details,
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    // Non-critical — don't block main operations
+    console.warn('Audit log failed:', e);
+  }
+};
+
+export const getRecentAuditLogs = async (limitCount = 50): Promise<AuditLog[]> => {
+  const q = query(collection(db, 'audit_logs'), orderBy('createdAt', 'desc'), limit(limitCount));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AuditLog));
 };
 
 // ─── Cadet Profile ────────────────────────────────────────────────────────────
@@ -62,6 +114,12 @@ export const getAllCadets = async (): Promise<CadetProfile[]> => {
 /** Fetch cadets filtered to a specific wing — for domain-scoped ANO views */
 export const getCadetsByWing = async (branch: Wing): Promise<CadetProfile[]> => {
   const q = query(collection(db, 'cadets'), where('branch', '==', branch));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as CadetProfile);
+};
+
+export const getCadetsByLifecycle = async (status: string): Promise<CadetProfile[]> => {
+  const q = query(collection(db, 'cadets'), where('lifecycleStatus', '==', status));
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data() as CadetProfile);
 };
@@ -158,12 +216,34 @@ export const deleteCampRecord = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, 'camps', id));
 };
 
+// ─── Camp Events (Unit-Level) ──────────────────────────────────────────────────
+
+export const getAllCampEvents = async (): Promise<CampEvent[]> => {
+  const q = query(collection(db, 'camp_events'), orderBy('startDate', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as CampEvent));
+};
+
+export const getCampEvent = async (id: string): Promise<CampEvent | null> => {
+  const snap = await getDoc(doc(db, 'camp_events', id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as CampEvent) : null;
+};
+
+export const addCampEvent = async (data: Omit<CampEvent, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'camp_events'), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateCampEvent = async (id: string, data: Partial<CampEvent>): Promise<void> => {
+  await updateDoc(doc(db, 'camp_events', id), { ...data, updatedAt: serverTimestamp() });
+};
+
+export const deleteCampEvent = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'camp_events', id));
+};
+
 // ─── Verification Engine ──────────────────────────────────────────────────────
 
-/**
- * Verify or reject a skill within a cadet's skills document.
- * Skills are stored as an array inside a single doc per cadet.
- */
 export const verifySkill = async (
   cadetUid: string,
   skillId: string,
@@ -175,20 +255,17 @@ export const verifySkill = async (
   const updated = skills.map((s) =>
     s.id === skillId
       ? {
-          ...s,
-          verificationStatus: status,
-          verifiedBy: verifiedByName,
-          verifiedAt: new Date().toISOString(),
-          ...(rejectionReason ? { rejectionReason } : { rejectionReason: '' }),
-        }
+        ...s,
+        verificationStatus: status,
+        verifiedBy: verifiedByName,
+        verifiedAt: new Date() as any,
+        ...(rejectionReason ? { rejectionReason } : { rejectionReason: '' }),
+      }
       : s
   );
   await saveCadetSkills(cadetUid, updated);
 };
 
-/**
- * Resubmit a rejected skill (reset to pending, clear rejection reason).
- */
 export const resubmitSkill = async (cadetUid: string, skillId: string): Promise<void> => {
   const skills = await getCadetSkills(cadetUid);
   const updated = skills.map((s) =>
@@ -199,9 +276,6 @@ export const resubmitSkill = async (cadetUid: string, skillId: string): Promise<
   await saveCadetSkills(cadetUid, updated);
 };
 
-/**
- * Verify or reject an achievement document.
- */
 export const verifyAchievement = async (
   id: string,
   status: VerificationStatus,
@@ -216,9 +290,6 @@ export const verifyAchievement = async (
   });
 };
 
-/**
- * Verify or reject a camp record document.
- */
 export const verifyCampRecord = async (
   id: string,
   status: VerificationStatus,
@@ -233,10 +304,6 @@ export const verifyCampRecord = async (
   });
 };
 
-/**
- * Get all pending verification items for cadets in a given wing.
- * Used by mod_cadet verify dashboard.
- */
 export const getPendingVerifications = async (
   branch: Wing,
   allCadetProfiles: CadetProfile[]
@@ -248,7 +315,6 @@ export const getPendingVerifications = async (
     wingCadets.map(async (cadet) => {
       const cadetName = `${cadet.firstName} ${cadet.lastName}`;
 
-      // Pending skills
       const skills = await getCadetSkills(cadet.uid);
       skills
         .filter((s) => s.verificationStatus === 'pending')
@@ -265,7 +331,6 @@ export const getPendingVerifications = async (
           })
         );
 
-      // Pending achievements
       const q1 = query(
         collection(db, 'achievements'),
         where('uid', '==', cadet.uid),
@@ -286,7 +351,6 @@ export const getPendingVerifications = async (
         });
       });
 
-      // Pending camps
       const q2 = query(
         collection(db, 'camps'),
         where('uid', '==', cadet.uid),
@@ -330,7 +394,6 @@ export const getAllEvaluations = async (): Promise<SemesterEvaluation[]> => {
 };
 
 export const getEvaluationsByWing = async (branch: Wing): Promise<SemesterEvaluation[]> => {
-  // Evaluations don't store branch directly; we join via cadet profiles
   const cadets = await getCadetsByWing(branch);
   const cadetUids = new Set(cadets.map((c) => c.uid));
   const all = await getAllEvaluations();
@@ -363,6 +426,368 @@ export const deleteEvaluation = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, 'evaluations', id));
 };
 
+// ─── Parades & Attendance ─────────────────────────────────────────────────────
+
+export const getAllParades = async (): Promise<ParadeSession[]> => {
+  const q = query(collection(db, 'parades'), orderBy('date', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ParadeSession));
+};
+
+export const getParadesByWing = async (wing: Wing | 'All'): Promise<ParadeSession[]> => {
+  const q = query(
+    collection(db, 'parades'),
+    where('wing', 'in', [wing, 'All']),
+    orderBy('date', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ParadeSession));
+};
+
+export const getParade = async (id: string): Promise<ParadeSession | null> => {
+  const snap = await getDoc(doc(db, 'parades', id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as ParadeSession) : null;
+};
+
+export const addParade = async (data: Omit<ParadeSession, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'parades'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateParade = async (id: string, data: Partial<ParadeSession>): Promise<void> => {
+  await updateDoc(doc(db, 'parades', id), data);
+};
+
+export const deleteParade = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'parades', id));
+};
+
+export const getAttendanceForParade = async (paradeId: string): Promise<AttendanceRecord[]> => {
+  const q = query(collection(db, 'attendance'), where('paradeId', '==', paradeId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+};
+
+export const getCadetAttendance = async (cadetUid: string): Promise<AttendanceRecord[]> => {
+  const q = query(collection(db, 'attendance'), where('cadetUid', '==', cadetUid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+};
+
+export const markAttendanceBulk = async (
+  paradeId: string,
+  records: { cadetUid: string; status: AttendanceStatus; remarks?: string }[],
+  markedBy: string
+): Promise<void> => {
+  const batch = writeBatch(db);
+  for (const r of records) {
+    const ref = doc(collection(db, 'attendance'));
+    batch.set(ref, {
+      paradeId,
+      cadetUid: r.cadetUid,
+      status: r.status,
+      remarks: r.remarks || '',
+      markedBy,
+      markedAt: serverTimestamp(),
+    });
+  }
+  await batch.commit();
+};
+
+export const updateAttendanceRecord = async (id: string, status: AttendanceStatus, remarks?: string): Promise<void> => {
+  await updateDoc(doc(db, 'attendance', id), { status, remarks });
+};
+
+// ─── Training Sessions ────────────────────────────────────────────────────────
+
+export const getAllTrainingSessions = async (): Promise<TrainingSession[]> => {
+  const q = query(collection(db, 'training_sessions'), orderBy('date', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TrainingSession));
+};
+
+export const addTrainingSession = async (data: Omit<TrainingSession, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'training_sessions'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const deleteTrainingSession = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'training_sessions', id));
+};
+
+// ─── Events & Activities ──────────────────────────────────────────────────────
+
+export const getAllEvents = async (): Promise<NccEvent[]> => {
+  const q = query(collection(db, 'events'), orderBy('date', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as NccEvent));
+};
+
+export const getEvent = async (id: string): Promise<NccEvent | null> => {
+  const snap = await getDoc(doc(db, 'events', id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as NccEvent) : null;
+};
+
+export const addEvent = async (data: Omit<NccEvent, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'events'), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateEvent = async (id: string, data: Partial<NccEvent>): Promise<void> => {
+  await updateDoc(doc(db, 'events', id), { ...data, updatedAt: serverTimestamp() });
+};
+
+export const deleteEvent = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'events', id));
+};
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+export const getAllAnnouncements = async (): Promise<Announcement[]> => {
+  const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Announcement));
+};
+
+export const getAnnouncementsForCadet = async (
+  cadetUid: string,
+  wing: Wing
+): Promise<Announcement[]> => {
+  const snap = await getDocs(query(collection(db, 'announcements'), orderBy('createdAt', 'desc')));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as Announcement))
+    .filter((a) => {
+      if (a.target === 'all') return true;
+      if (a.target === 'army' && wing === 'Army') return true;
+      if (a.target === 'navy' && wing === 'Navy') return true;
+      if (a.target === 'air_force' && wing === 'Air Force') return true;
+      if (a.target === 'cadets_only') return true;
+      if (a.target === 'specific' && a.targetUids?.includes(cadetUid)) return true;
+      return false;
+    });
+};
+
+export const addAnnouncement = async (data: Omit<Announcement, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'announcements'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateAnnouncement = async (id: string, data: Partial<Announcement>): Promise<void> => {
+  await updateDoc(doc(db, 'announcements', id), data);
+};
+
+export const deleteAnnouncement = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'announcements', id));
+};
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+export const getAllDocuments = async (): Promise<NccDocument[]> => {
+  const q = query(collection(db, 'documents'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as NccDocument));
+};
+
+export const addDocument = async (data: Omit<NccDocument, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'documents'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const deleteDocument = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'documents', id));
+};
+
+// ─── Inventory ────────────────────────────────────────────────────────────────
+
+export const getAllInventory = async (): Promise<InventoryItem[]> => {
+  const snap = await getDocs(collection(db, 'inventory'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as InventoryItem));
+};
+
+export const addInventoryItem = async (data: Omit<InventoryItem, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'inventory'), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateInventoryItem = async (id: string, data: Partial<InventoryItem>): Promise<void> => {
+  await updateDoc(doc(db, 'inventory', id), { ...data, updatedAt: serverTimestamp() });
+};
+
+export const deleteInventoryItem = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'inventory', id));
+};
+
+export const getInventoryIssuesByCadet = async (cadetUid: string): Promise<InventoryIssue[]> => {
+  const q = query(collection(db, 'inventory_issues'), where('cadetUid', '==', cadetUid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as InventoryIssue));
+};
+
+export const getAllInventoryIssues = async (): Promise<InventoryIssue[]> => {
+  const snap = await getDocs(collection(db, 'inventory_issues'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as InventoryIssue));
+};
+
+export const addInventoryIssue = async (data: Omit<InventoryIssue, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'inventory_issues'), { ...data, createdAt: serverTimestamp() });
+  // Decrement available quantity
+  await updateDoc(doc(db, 'inventory', data.itemId), {
+    availableQuantity: (await getDoc(doc(db, 'inventory', data.itemId))).data()!.availableQuantity - data.quantity,
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const returnInventoryIssue = async (id: string, itemId: string, qty: number, returnedTo: string): Promise<void> => {
+  await updateDoc(doc(db, 'inventory_issues', id), {
+    returnedDate: new Date().toISOString().split('T')[0],
+    returnedTo,
+  });
+  const itemSnap = await getDoc(doc(db, 'inventory', itemId));
+  if (itemSnap.exists()) {
+    await updateDoc(doc(db, 'inventory', itemId), {
+      availableQuantity: itemSnap.data().availableQuantity + qty,
+      updatedAt: serverTimestamp(),
+    });
+  }
+};
+
+// ─── Medical Records ──────────────────────────────────────────────────────────
+
+export const getMedicalRecordsByCadet = async (cadetUid: string): Promise<MedicalRecord[]> => {
+  const q = query(collection(db, 'medical_records'), where('cadetUid', '==', cadetUid), orderBy('date', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MedicalRecord));
+};
+
+export const getAllMedicalRecords = async (): Promise<MedicalRecord[]> => {
+  const snap = await getDocs(collection(db, 'medical_records'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MedicalRecord));
+};
+
+export const addMedicalRecord = async (data: Omit<MedicalRecord, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'medical_records'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const deleteMedicalRecord = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'medical_records', id));
+};
+
+// ─── Promotions ───────────────────────────────────────────────────────────────
+
+export const getAllPromotions = async (): Promise<PromotionRecord[]> => {
+  const q = query(collection(db, 'promotions'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PromotionRecord));
+};
+
+export const addPromotion = async (data: Omit<PromotionRecord, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'promotions'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const approvePromotion = async (
+  id: string,
+  cadetUid: string,
+  toRank: string,
+  approvedBy: string
+): Promise<void> => {
+  await updateDoc(doc(db, 'promotions', id), {
+    status: 'approved',
+    approvedBy,
+    approvedAt: serverTimestamp(),
+  });
+  // Update cadet rank in users and cadets collections
+  await Promise.all([
+    updateDoc(doc(db, 'users', cadetUid), { nccRank: toRank }),
+    updateDoc(doc(db, 'cadets', cadetUid), { nccRank: toRank, updatedAt: serverTimestamp() }),
+  ]);
+};
+
+export const rejectPromotion = async (id: string): Promise<void> => {
+  await updateDoc(doc(db, 'promotions', id), { status: 'rejected' });
+};
+
+// ─── Enrollment Applications ──────────────────────────────────────────────────
+
+export const getAllApplications = async (): Promise<EnrollmentApplication[]> => {
+  const q = query(collection(db, 'applications'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as EnrollmentApplication));
+};
+
+export const addApplication = async (data: Omit<EnrollmentApplication, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'applications'), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateApplicationStatus = async (
+  id: string,
+  status: ApplicationStatus,
+  remarks?: string,
+  reviewedBy?: string
+): Promise<void> => {
+  const snap = await getDoc(doc(db, 'applications', id));
+  if (!snap.exists()) return;
+  
+  const existing = snap.data() as EnrollmentApplication;
+  const history = existing.statusHistory || [];
+  history.push({ status, date: new Date().toISOString().split('T')[0], remarks: remarks || '' });
+
+  const updateData: any = {
+    status,
+    statusHistory: history,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (remarks !== undefined || existing.remarks !== undefined) {
+    updateData.remarks = remarks || existing.remarks || '';
+  }
+  if (reviewedBy !== undefined || existing.reviewedBy !== undefined) {
+    updateData.reviewedBy = reviewedBy || existing.reviewedBy || '';
+  }
+
+  await updateDoc(doc(db, 'applications', id), updateData);
+};
+
+// ─── Finance ──────────────────────────────────────────────────────────────────
+
+export const getAllFinanceRecords = async (): Promise<FinanceRecord[]> => {
+  const q = query(collection(db, 'finance_records'), orderBy('date', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as FinanceRecord));
+};
+
+export const addFinanceRecord = async (data: Omit<FinanceRecord, 'id'>): Promise<string> => {
+  const ref = await addDoc(collection(db, 'finance_records'), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+};
+
+export const updateFinanceRecord = async (id: string, data: Partial<FinanceRecord>): Promise<void> => {
+  await updateDoc(doc(db, 'finance_records', id), data);
+};
+
+export const deleteFinanceRecord = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'finance_records', id));
+};
+
+// ─── Alumni ───────────────────────────────────────────────────────────────────
+
+export const getAllAlumni = async (): Promise<AlumniProfile[]> => {
+  const snap = await getDocs(collection(db, 'alumni_profiles'));
+  return snap.docs.map((d) => d.data() as AlumniProfile);
+};
+
+export const getAlumniProfile = async (uid: string): Promise<AlumniProfile | null> => {
+  const snap = await getDoc(doc(db, 'alumni_profiles', uid));
+  return snap.exists() ? (snap.data() as AlumniProfile) : null;
+};
+
+export const saveAlumniProfile = async (uid: string, data: Partial<AlumniProfile>): Promise<void> => {
+  await setDoc(doc(db, 'alumni_profiles', uid), { ...data, uid, updatedAt: serverTimestamp() }, { merge: true });
+};
+
 // ─── Camp Recommendation Engine ───────────────────────────────────────────────
 
 const CAMP_CRITERIA: Record<string, { skills: Record<string, number>; evalFields: string[]; minAttendance?: number }> = {
@@ -372,12 +797,15 @@ const CAMP_CRITERIA: Record<string, { skills: Record<string, number>; evalFields
   NIC: { skills: {}, evalFields: ['communication', 'leadership'] },
   CATC: { skills: { Drill: 3, Parade: 3 }, evalFields: ['discipline', 'teamwork'] },
   SNIC: { skills: {}, evalFields: ['communication', 'leadership', 'teamwork'] },
+  'Pre-RDC': { skills: { Drill: 3, Parade: 3 }, evalFields: ['discipline', 'drill'] },
+  ATC: { skills: { Drill: 3 }, evalFields: ['discipline', 'physicalFitness'] },
+  WATC: { skills: {}, evalFields: ['physicalFitness', 'teamwork', 'discipline'] },
 };
 
 export const runCampRecommendation = async (
   campType: string,
   seats: number,
-  branch?: Wing  // optional wing filter for ANO scoping
+  branch?: Wing
 ): Promise<RecommendedCadet[]> => {
   const criteria = CAMP_CRITERIA[campType] || { skills: {}, evalFields: [] };
 
@@ -387,7 +815,6 @@ export const runCampRecommendation = async (
     branch ? getEvaluationsByWing(branch) : getAllEvaluations(),
   ]);
 
-  // Only use verified skills for recommendation
   const skillsMap: Record<string, Skill[]> = {};
   allSkillsDocs.docs.forEach((d) => {
     const data = d.data() as CadetSkills;
@@ -484,8 +911,8 @@ export const updateUserNccRank = async (uid: string, nccRank: string): Promise<v
 
 export const deleteUserDoc = async (uid: string): Promise<void> => {
   await deleteDoc(doc(db, 'users', uid));
-  try { await deleteDoc(doc(db, 'cadets', uid)); } catch (e) {}
-  try { await deleteDoc(doc(db, 'skills', uid)); } catch (e) {}
+  try { await deleteDoc(doc(db, 'cadets', uid)); } catch (e) { }
+  try { await deleteDoc(doc(db, 'skills', uid)); } catch (e) { }
 };
 
 export const deleteCadetDoc = async (uid: string): Promise<void> => {
@@ -511,7 +938,6 @@ export const deleteEvaluationAdmin = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, 'evaluations', id));
 };
 
-/** Admin: verify or reject any item across all wings */
 export const adminVerifySkill = async (cadetUid: string, skillId: string, status: VerificationStatus, reason?: string): Promise<void> => {
   await verifySkill(cadetUid, skillId, status, 'Admin', reason);
 };
@@ -524,7 +950,6 @@ export const adminVerifyCampRecord = async (id: string, status: VerificationStat
   await verifyCampRecord(id, status, 'Admin', reason);
 };
 
-/** Admin: get all pending verifications across ALL wings */
 export const getAllPendingVerifications = async (): Promise<PendingVerificationItem[]> => {
   const allCadets = await getAllCadets();
   const items: PendingVerificationItem[] = [];

@@ -76,10 +76,12 @@ export default function AutoLodgePage() {
           await addAchievement(user.uid, achData as any);
         } else if (item.type === 'skill') {
           newSkills.push({
+            id: `sk_${Date.now()}_${Math.random().toString(36).slice(2)}`,
             category: item.category,
             name: item.title,
             level: item.level === 'Beginner' ? 1 : item.level === 'Intermediate' ? 3 : 5,
-            verificationStatus: 'pending',
+            verificationStatus: 'pending' as const,
+            addedAt: new Date() as any,
           });
           skillsUpdated = true;
         }

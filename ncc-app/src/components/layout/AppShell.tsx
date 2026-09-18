@@ -53,6 +53,12 @@ export default function AppShell({ children, requiredRole }: AppShellProps) {
           router.replace('/admin/dashboard');
         } else if (userProfile.role === 'ano') {
           router.replace('/ano/dashboard');
+        } else if (userProfile.role === 'oic') {
+          router.replace('/command/dashboard');
+        } else if (userProfile.role === 'clerk') {
+          router.replace('/command/cadets');
+        } else if (userProfile.role === 'alumni') {
+          router.replace('/alumni/dashboard');
         } else if (userProfile.role === 'mod_cadet') {
           router.replace('/mod-cadet/dashboard');
         } else {
@@ -121,7 +127,7 @@ export default function AppShell({ children, requiredRole }: AppShellProps) {
 
       <main
         className="main-content"
-        style={{ marginLeft: SIDEBAR_WIDTH }}
+        style={{ flex: 1, minWidth: 0 }}
       >
         <div className="page-content page-enter">
           {children}

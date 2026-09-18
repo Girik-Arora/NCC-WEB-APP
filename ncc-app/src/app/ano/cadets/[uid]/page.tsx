@@ -7,6 +7,7 @@ import { getCadetProfile, getCadetSkills, getCadetAchievements, getCampHistory, 
 import type { CadetProfile, Skill, Achievement, CampRecord, SemesterEvaluation } from '@/types';
 import Link from 'next/link';
 import { ArrowLeft, User, Star, Trophy, Tent, FileText, CheckCircle, Heart, Phone } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CAMP_COLORS: Record<string, string> = {
   CATC: '#2563eb', NIC: '#7c3aed', SNIC: '#db2777',
@@ -16,6 +17,7 @@ const CAMP_COLORS: Record<string, string> = {
 
 export default function CadetDetailPage() {
   const { uid } = useParams() as { uid: string };
+  const { userProfile } = useAuth();
   const [profile, setProfile] = useState<CadetProfile | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
@@ -51,7 +53,7 @@ export default function CadetDetailPage() {
 
   if (loading) {
     return (
-      <AppShell requiredRole={['ano', 'admin']}>
+      <AppShell requiredRole={['ano', 'admin', 'mod_cadet']}>
         <div style={{ height: 400, background: '#e2e8f0', borderRadius: 12, animation: 'pulse 1.5s ease-in-out infinite' }} />
         <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }`}</style>
       </AppShell>
@@ -59,7 +61,7 @@ export default function CadetDetailPage() {
   }
 
   if (!profile) {
-    return <AppShell requiredRole={['ano', 'admin']}><p>Cadet not found.</p></AppShell>;
+    return <AppShell requiredRole={['ano', 'admin', 'mod_cadet']}><p>Cadet not found.</p></AppShell>;
   }
 
   const tabs = [
@@ -69,15 +71,18 @@ export default function CadetDetailPage() {
     { id: 'camps', label: `Camps (${camps.length})` },
     { id: 'evaluations', label: `Evaluations (${evaluations.length})` },
   ] as const;
-  
+
   type TabId = typeof tabs[number]['id'];
 
+  const canEvaluate = userProfile?.role === 'ano' || userProfile?.role === 'admin';
+  const backUrl = userProfile?.role === 'mod_cadet' ? '/mod-cadet/roster' : '/ano/cadets';
+
   return (
-    <AppShell requiredRole={['ano', 'admin']}>
+    <AppShell requiredRole={['ano', 'admin', 'mod_cadet']}>
       {/* Back */}
-      <Link href="/ano/cadets" style={{ textDecoration: 'none' }}>
+      <Link href={backUrl} style={{ textDecoration: 'none' }}>
         <button className="btn-ghost" style={{ marginBottom: 20 }}>
-          <ArrowLeft size={16} /> Back to Cadets
+          <ArrowLeft size={16} /> {userProfile?.role === 'mod_cadet' ? 'Back to Platoon Roster' : 'Back to Cadets'}
         </button>
       </Link>
 
@@ -105,11 +110,13 @@ export default function CadetDetailPage() {
               <span>College: <strong style={{ color: '#0f172a' }}>{profile.college}</strong></span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Link href={`/ano/evaluate?cadet=${uid}`}>
-              <button className="btn-primary" style={{ fontSize: 13 }}>Evaluate</button>
-            </Link>
-          </div>
+          {canEvaluate && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Link href={`/ano/evaluate?cadet=${uid}`}>
+                <button className="btn-primary" style={{ fontSize: 13 }}>Evaluate</button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

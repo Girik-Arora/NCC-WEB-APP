@@ -483,17 +483,9 @@ export default function LoginPage() {
                   <input className="form-input" value={onboardForm.college} onChange={(e) => setOnboardForm({...onboardForm, college: e.target.value})} placeholder="College Name" required />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Phone *</label>
-                  <input className="form-input" value={onboardForm.phone} onChange={(e) => setOnboardForm({...onboardForm, phone: e.target.value})} placeholder="+91 XXXXX XXXXX" required />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Branch</label>
-                  <select className="form-select" value={onboardForm.branch} onChange={(e) => setOnboardForm({...onboardForm, branch: e.target.value})}>
-                    {['Army', 'Navy', 'Air Force'].map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Phone *</label>
+                <input className="form-input" value={onboardForm.phone} onChange={(e) => setOnboardForm({...onboardForm, phone: e.target.value})} placeholder="+91 XXXXX XXXXX" required />
               </div>
               <button type="submit" className="btn-gold" disabled={loading}
                 style={{ width: '100%', justifyContent: 'center', padding: '13px', fontSize: 15, marginTop: 4 }}>

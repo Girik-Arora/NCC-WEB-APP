@@ -8,7 +8,8 @@ import { RANK_LABELS } from '@/types';
 import toast from 'react-hot-toast';
 import {
   CheckCircle, XCircle, Clock, Users, Star, Trophy, Tent,
-  LayoutDashboard, ShieldCheck, ChevronRight, AlertCircle, User
+  LayoutDashboard, ShieldCheck, ChevronRight, AlertCircle, User,
+  Calendar, FileText, Award, HeartPulse, Bell, BookOpen, Package, Zap, BarChart2,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppShell from '@/components/layout/AppShell';
@@ -165,13 +166,23 @@ function ModCadetDashboard() {
       {/* My Profile Tab — links to cadet sub-pages */}
       {activeTab === 'my-profile' && (
         <div>
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>My Portfolio</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
             {[
-              { href: '/mod-cadet/profile', icon: <User size={20} />, label: 'My Profile', desc: 'Complete your personal details', color: '#2563eb', bg: '#eff6ff' },
-              { href: '/mod-cadet/skills', icon: <Star size={20} />, label: 'My Skills', desc: 'Add and track your skills', color: '#f59e0b', bg: '#fffbeb' },
-              { href: '/mod-cadet/achievements', icon: <Trophy size={20} />, label: 'My Achievements', desc: 'Log your achievements', color: '#7c3aed', bg: '#f5f3ff' },
-              { href: '/mod-cadet/camps', icon: <Tent size={20} />, label: 'Camp History', desc: 'Record your camp participation', color: '#16a34a', bg: '#f0fdf4' },
-              { href: '/mod-cadet/availability', icon: <CheckCircle size={20} />, label: 'Availability', desc: 'Set your camp availability', color: '#0369a1', bg: '#f0f9ff' },
+              { href: '/mod-cadet/profile',       icon: <User size={20} />,       label: 'My Profile',       desc: 'Complete your personal details',       color: '#2563eb', bg: '#eff6ff' },
+              { href: '/mod-cadet/skills',         icon: <Star size={20} />,       label: 'My Skills',        desc: 'Add and track your skills',            color: '#f59e0b', bg: '#fffbeb' },
+              { href: '/mod-cadet/achievements',   icon: <Trophy size={20} />,     label: 'Achievements',     desc: 'Log your achievements',                color: '#7c3aed', bg: '#f5f3ff' },
+              { href: '/mod-cadet/camps',          icon: <Tent size={20} />,       label: 'Camp History',     desc: 'Record your camp participation',       color: '#16a34a', bg: '#f0fdf4' },
+              { href: '/mod-cadet/availability',   icon: <Calendar size={20} />,   label: 'Availability',     desc: 'Set your camp availability',           color: '#0369a1', bg: '#f0f9ff' },
+              { href: '/mod-cadet/scorecard',      icon: <BarChart2 size={20} />,  label: 'My Scorecard',     desc: 'View your NCC performance score',      color: '#7c3aed', bg: '#faf5ff' },
+              { href: '/mod-cadet/attendance',     icon: <CheckCircle size={20} />,label: 'Attendance',       desc: 'Track your parade attendance',         color: '#15803d', bg: '#f0fdf4' },
+              { href: '/mod-cadet/certificate',    icon: <Award size={20} />,      label: 'Certificate',      desc: 'Check B/C cert eligibility',           color: '#d97706', bg: '#fffbeb' },
+              { href: '/mod-cadet/auto-lodge',     icon: <Zap size={20} />,        label: 'Auto-Lodge',       desc: 'AI-powered certificate upload',        color: '#854d0e', bg: '#fefce8' },
+              { href: '/mod-cadet/medical',        icon: <HeartPulse size={20} />, label: 'Medical Records',  desc: 'View your medical & fitness status',   color: '#be185d', bg: '#fdf2f8' },
+              { href: '/mod-cadet/uniform',        icon: <Package size={20} />,    label: 'Uniform & Gear',   desc: 'Track issued uniform & equipment',     color: '#374151', bg: '#f9fafb' },
+              { href: '/mod-cadet/notices',        icon: <Bell size={20} />,       label: 'Notices',          desc: 'Announcements from your ANO',          color: '#0369a1', bg: '#f0f9ff' },
+              { href: '/mod-cadet/training',       icon: <BookOpen size={20} />,   label: 'Training Record',  desc: 'NCC training sessions for your wing',  color: '#1d4ed8', bg: '#eff6ff' },
+              { href: '/mod-cadet/events',         icon: <Calendar size={20} />,   label: 'Events',           desc: 'NCC events and activities',            color: '#7c3aed', bg: '#faf5ff' },
             ].map((item) => (
               <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
                 <div className="card" style={{ padding: '20px', cursor: 'pointer', transition: 'all 0.2s' }}

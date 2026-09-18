@@ -36,7 +36,7 @@ function AddModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: Omit<
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await onAdd({ ...form });
+      await onAdd({ ...form, verificationStatus: 'pending' });
       onClose();
     } catch {
       toast.error('Failed to add camp record.');

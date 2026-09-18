@@ -62,7 +62,7 @@ export default function AdminAchievementsPage() {
 
   const handleEdit = (a: AchievementRow) => {
     setEditing(a);
-    setEditForm({ title: a.title, date: a.date, description: a.description || '' });
+    setEditForm({ title: a.title, date: a.date ?? '', description: a.description || '' });
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {

@@ -1,378 +1,187 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCadetProfile, saveCadetProfile } from '@/lib/db';
 import type { CadetProfile } from '@/types';
+import { User, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Save, User, Phone, AlertTriangle, Heart, AlertCircle } from 'lucide-react';
 
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
-const BRANCHES = ['Army', 'Navy', 'Air Force'];
-const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
-const GENDERS = ['Male', 'Female', 'Other'];
+const DEPARTMENTS = ['Computer Engineering', 'Information Technology', 'EXTC', 'Mechanical', 'Civil', 'Electrical', 'AI & DS', 'AIDS', 'Other'];
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-const STATE_CITIES: Record<string, string[]> = {
-  "Andaman and Nicobar Islands": ["Port Blair"],
-  "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Tirupati"],
-  "Arunachal Pradesh": ["Itanagar", "Tawang"],
-  "Assam": ["Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Tezpur"],
-  "Bihar": ["Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia"],
-  "Chandigarh": ["Chandigarh"],
-  "Chhattisgarh": ["Raipur", "Bhilai", "Bilaspur", "Korba", "Durg"],
-  "Dadra and Nagar Haveli and Daman and Diu": ["Daman", "Diu", "Silvassa"],
-  "Delhi": ["New Delhi", "North Delhi", "South Delhi", "East Delhi", "West Delhi"],
-  "Goa": ["Panaji", "Margao", "Vasco da Gama", "Mapusa"],
-  "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar"],
-  "Haryana": ["Faridabad", "Gurugram", "Panipat", "Ambala", "Rohtak"],
-  "Himachal Pradesh": ["Shimla", "Dharamshala", "Manali", "Mandi", "Solan"],
-  "Jammu and Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla"],
-  "Jharkhand": ["Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Deoghar"],
-  "Karnataka": ["Bengaluru", "Mysuru", "Hubballi", "Mangaluru", "Belagavi"],
-  "Kerala": ["Thiruvananthapuram", "Kochi", "Kozhikode", "Thrissur", "Kollam"],
-  "Ladakh": ["Leh", "Kargil"],
-  "Lakshadweep": ["Kavaratti"],
-  "Madhya Pradesh": ["Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain"],
-  "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik", "Thane", "Aurangabad", "Navi Mumbai"],
-  "Manipur": ["Imphal"],
-  "Meghalaya": ["Shillong", "Cherrapunji"],
-  "Mizoram": ["Aizawl"],
-  "Nagaland": ["Kohima", "Dimapur"],
-  "Odisha": ["Bhubaneswar", "Cuttack", "Rourkela", "Puri", "Sambalpur"],
-  "Puducherry": ["Puducherry", "Oulgaret", "Karaikal"],
-  "Punjab": ["Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda"],
-  "Rajasthan": ["Jaipur", "Jodhpur", "Udaipur", "Kota", "Bikaner"],
-  "Sikkim": ["Gangtok"],
-  "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem"],
-  "Telangana": ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar", "Khammam"],
-  "Tripura": ["Agartala"],
-  "Uttar Pradesh": ["Lucknow", "Kanpur", "Agra", "Varanasi", "Noida", "Ghaziabad", "Prayagraj"],
-  "Uttarakhand": ["Dehradun", "Haridwar", "Roorkee", "Rishikesh", "Haldwani"],
-  "West Bengal": ["Kolkata", "Asansol", "Siliguri", "Durgapur", "Howrah"]
-};
-export default function ProfilePage() {
-  const { user } = useAuth();
-  const [form, setForm] = useState<Partial<CadetProfile>>({
-    firstName: '', lastName: '', rollNumber: '', branch: 'Army',
-    college: '', semester: 1, bloodGroup: 'O+', dateOfBirth: '',
-    gender: 'Male', phone: '', address: '', city: '', state: '',
-    emergencyName: '', emergencyRelation: '', emergencyPhone: '',
-    medicalIssues: false, medicalDetails: '',
-  });
-  const [saving, setSaving] = useState(false);
+// ── These must be defined OUTSIDE the page component.
+// ── Defining them inside causes React to unmount/remount inputs on every keystroke.
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'var(--surface-0)', border: '1px solid var(--border-light)', borderRadius: 12, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border-light)' }}>{title}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, req, full, children }: { label: string; req?: boolean; full?: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
+      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>
+        {label} {req && <span style={{ color: 'var(--danger)' }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+export default function CadetProfilePage() {
+  const { userProfile } = useAuth();
+  const [profile, setProfile] = useState<Partial<CadetProfile>>({});
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'personal' | 'contact' | 'emergency' | 'medical'>('personal');
-
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    getCadetProfile(user.uid).then((p) => {
-      if (p) setForm(p);
-      setLoading(false);
-    });
-  }, [user]);
+    if (!userProfile?.uid) return;
+    getCadetProfile(userProfile.uid).then(p => {
+      if (p) setProfile(p);
+      else setProfile({ uid: userProfile.uid, firstName: userProfile.displayName?.split(' ')[0] || '', lastName: userProfile.displayName?.split(' ').slice(1).join(' ') || '', branch: userProfile.branch });
+    }).finally(() => setLoading(false));
+  }, [userProfile]);
 
-  const handleAutoSave = async (currentForm: Partial<CadetProfile>) => {
-    if (!user) return;
-    setSaving(true);
-    try {
-      const currentMissingFields: string[] = [];
-      if (!currentForm.firstName) currentMissingFields.push('First Name');
-      if (!currentForm.lastName) currentMissingFields.push('Last Name');
-      if (!currentForm.rollNumber) currentMissingFields.push('Roll Number');
-      if (!currentForm.college) currentMissingFields.push('College');
-      if (!currentForm.dateOfBirth) currentMissingFields.push('Date of Birth');
-      if (!currentForm.phone) currentMissingFields.push('Phone Number');
-      if (!currentForm.address) currentMissingFields.push('Address');
-      if (!currentForm.city) currentMissingFields.push('City');
-      if (!currentForm.state) currentMissingFields.push('State');
-      if (!currentForm.emergencyName) currentMissingFields.push('Emergency Contact Name');
-      if (!currentForm.emergencyRelation) currentMissingFields.push('Emergency Contact Relation');
-      if (!currentForm.emergencyPhone) currentMissingFields.push('Emergency Phone');
-      if (currentForm.medicalIssues && !currentForm.medicalDetails) currentMissingFields.push('Medical Details');
-
-      const isComplete = currentMissingFields.length === 0;
-      await saveCadetProfile(user.uid, { ...currentForm, profileComplete: isComplete });
-      if (isComplete && !currentForm.profileComplete) {
-        toast.success('Profile completed successfully!');
-      }
-    } catch {
-      toast.error('Failed to auto-save profile.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleChange = (field: keyof CadetProfile, value: unknown) => {
-    const updatedForm = { ...form, [field]: value };
-    setForm(updatedForm);
-    
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      handleAutoSave(updatedForm);
-    }, 1000);
-  };
-
-  const missingFields: string[] = [];
-  if (!form.firstName) missingFields.push('First Name');
-  if (!form.lastName) missingFields.push('Last Name');
-  if (!form.rollNumber) missingFields.push('Roll Number');
-  if (!form.college) missingFields.push('College');
-  if (!form.dateOfBirth) missingFields.push('Date of Birth');
-  if (!form.phone) missingFields.push('Phone Number');
-  if (!form.address) missingFields.push('Address');
-  if (!form.city) missingFields.push('City');
-  if (!form.state) missingFields.push('State');
-  if (!form.emergencyName) missingFields.push('Emergency Contact Name');
-  if (!form.emergencyRelation) missingFields.push('Emergency Contact Relation');
-  if (!form.emergencyPhone) missingFields.push('Emergency Phone');
-  if (form.medicalIssues && !form.medicalDetails) missingFields.push('Medical Details');
+  const set = (field: string, value: any) => setProfile(p => ({ ...p, [field]: value }));
 
   const handleSave = async () => {
-    if (!user) return;
     setSaving(true);
     try {
-      const isComplete = missingFields.length === 0;
-      await saveCadetProfile(user.uid, { ...form, profileComplete: isComplete });
-      if (isComplete && !form.profileComplete) {
-        toast.success('Profile completed successfully!');
-      } else {
-        toast.success('Profile saved successfully!');
-      }
-    } catch {
-      toast.error('Failed to save profile.');
-    } finally {
-      setSaving(false);
-    }
+      await saveCadetProfile(userProfile!.uid, { ...profile, profileComplete: true });
+      toast.success('Profile saved successfully!');
+    } catch { toast.error('Failed to save profile'); }
+    finally { setSaving(false); }
   };
 
-  const tabs = [
-    { id: 'personal', label: 'Personal', icon: <User size={15} /> },
-    { id: 'contact', label: 'Contact', icon: <Phone size={15} /> },
-    { id: 'emergency', label: 'Emergency', icon: <AlertTriangle size={15} /> },
-    { id: 'medical', label: 'Medical', icon: <Heart size={15} /> },
-  ] as const;
-
-  if (loading) {
-    return (
-      <AppShell>
-        <div style={{ height: 400, background: '#e2e8f0', borderRadius: 12, animation: 'pulse 1.5s ease-in-out infinite' }} />
-        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }`}</style>
-      </AppShell>
-    );
-  }
+  const inputStyle: React.CSSProperties = { width: '100%', height: 40, padding: '0 12px', border: '1.5px solid var(--border-light)', borderRadius: 8, fontSize: 13, background: 'var(--surface-0)', color: 'var(--text-body)', outline: 'none', boxSizing: 'border-box' };
 
   return (
-    <AppShell>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>My Profile</h1>
-          <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Manage your personal information and contact details.</p>
-        </div>
-        <button className="btn-primary" onClick={handleSave} disabled={saving}>
-          <Save size={16} />
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
-      </div>
-
-
-
-      {/* Tab Navigation */}
-      <div style={{
-        display: 'flex', gap: 4, marginBottom: 24,
-        background: '#f1f5f9', padding: 4, borderRadius: 10, width: 'fit-content',
-      }}>
-        {tabs.map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 18px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: 500, fontFamily: 'Inter, sans-serif',
-              background: activeTab === tab.id ? 'white' : 'transparent',
-              color: activeTab === tab.id ? '#1e3a5f' : '#64748b',
-              boxShadow: activeTab === tab.id ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s',
-            }}>
-            {tab.icon} {tab.label}
+    <AppShell requiredRole={['cadet', 'mod_cadet', 'ano', 'oic', 'admin', 'alumni']}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Rajdhani, sans-serif', color: 'var(--text-heading)' }}>My Profile</h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keep your NCC cadet record up to date</p>
+          </div>
+          <button onClick={handleSave} disabled={saving || loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--navy-600)', color: '#fff', padding: '10px 20px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            <Save size={15} /> {saving ? 'Saving…' : 'Save Profile'}
           </button>
-        ))}
-      </div>
+        </div>
 
-      <div className="card" style={{ maxWidth: 720 }}>
-        {/* Personal Details */}
-        {activeTab === 'personal' && (
-          <div>
-            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <User size={18} color="#1e3a5f" /> Personal Details
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="form-group">
-                <label className="form-label">First Name *</label>
-                <input className="form-input" value={form.firstName || ''} onChange={(e) => handleChange('firstName', e.target.value)} placeholder="Enter first name" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Last Name *</label>
-                <input className="form-input" value={form.lastName || ''} onChange={(e) => handleChange('lastName', e.target.value)} placeholder="Enter last name" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Roll Number *</label>
-                <input className="form-input" value={form.rollNumber || ''} onChange={(e) => handleChange('rollNumber', e.target.value)} placeholder="e.g. 2024CSE001" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">College / Institution *</label>
-                <input className="form-input" value={form.college || ''} onChange={(e) => handleChange('college', e.target.value)} placeholder="College name" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">NCC Branch</label>
-                <select className="form-select" value={form.branch || 'Army'} onChange={(e) => handleChange('branch', e.target.value)}>
-                  {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading…</div>
+        ) : (
+          <>
+            <Section title="👤 Personal Information">
+              <Field label="First Name" req><input value={profile.firstName || ''} onChange={e => set('firstName', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Last Name" req><input value={profile.lastName || ''} onChange={e => set('lastName', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Date of Birth"><input type="date" value={profile.dateOfBirth || ''} onChange={e => set('dateOfBirth', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Gender">
+                <select value={profile.gender || ''} onChange={e => set('gender', e.target.value)} style={inputStyle}>
+                  <option value="">Select</option>
+                  <option>Male</option><option>Female</option><option>Other</option>
                 </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Current Semester</label>
-                <select className="form-select" value={form.semester || 1} onChange={(e) => handleChange('semester', parseInt(e.target.value))}>
-                  {SEMESTERS.map((s) => <option key={s} value={s}>Semester {s}</option>)}
+              </Field>
+              <Field label="Blood Group">
+                <select value={profile.bloodGroup || ''} onChange={e => set('bloodGroup', e.target.value)} style={inputStyle}>
+                  <option value="">Select</option>
+                  {BLOOD_GROUPS.map(b => <option key={b}>{b}</option>)}
                 </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Blood Group</label>
-                <select className="form-select" value={form.bloodGroup || 'O+'} onChange={(e) => handleChange('bloodGroup', e.target.value)}>
-                  {BLOOD_GROUPS.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Gender</label>
-                <select className="form-select" value={form.gender || 'Male'} onChange={(e) => handleChange('gender', e.target.value)}>
-                  {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Date of Birth</label>
-                <input className="form-input" type="date" value={form.dateOfBirth || ''} onChange={(e) => handleChange('dateOfBirth', e.target.value)} />
-              </div>
-            </div>
-          </div>
-        )}
+              </Field>
+              <Field label="Phone Number"><input value={profile.phone || ''} onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXXXXXXX" style={inputStyle} /></Field>
+              <Field label="Address" full><input value={profile.address || ''} onChange={e => set('address', e.target.value)} placeholder="Full residential address" style={inputStyle} /></Field>
+            </Section>
 
-        {/* Contact Details */}
-        {activeTab === 'contact' && (
-          <div>
-            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Phone size={18} color="#1e3a5f" /> Contact Details
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Phone Number *</label>
-                <input className="form-input" value={form.phone || ''} onChange={(e) => handleChange('phone', e.target.value)} placeholder="+91 XXXXX XXXXX" />
-              </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Address</label>
-                <input className="form-input" value={form.address || ''} onChange={(e) => handleChange('address', e.target.value)} placeholder="Street address" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">State</label>
-                <select 
-                  className="form-select" 
-                  value={form.state || ''} 
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const updatedForm = { ...form, state: val, city: '' };
-                    setForm(updatedForm);
-                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                    timeoutRef.current = setTimeout(() => handleAutoSave(updatedForm), 1000);
-                  }}
-                >
-                  <option value="" disabled>Select State</option>
-                  {Object.keys(STATE_CITIES).map(state => (
-                    <option key={state} value={state}>{state}</option>
+            <Section title="🎓 Academic Details">
+              <Field label="Roll Number" req><input value={profile.rollNumber || ''} onChange={e => set('rollNumber', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Department" req>
+                <select value={profile.department || ''} onChange={e => set('department', e.target.value)} style={inputStyle}>
+                  <option value="">Select</option>
+                  {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                </select>
+              </Field>
+              <Field label="Semester">
+                <select value={profile.semester?.toString() || ''} onChange={e => set('semester', parseInt(e.target.value))} style={inputStyle}>
+                  <option value="">Select</option>
+                  {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+                </select>
+              </Field>
+              <Field label="Enrollment Year"><input type="number" value={profile.enrollmentYear || ''} onChange={e => set('enrollmentYear', parseInt(e.target.value))} placeholder="2024" style={inputStyle} /></Field>
+            </Section>
+
+            <Section title="🪖 NCC Details">
+              <Field label="Regimental Number"><input value={profile.regimentalNumber || ''} onChange={e => set('regimentalNumber', e.target.value)} style={inputStyle} /></Field>
+              <Field label="NCC Wing">
+                <select value={profile.branch || ''} onChange={e => set('branch', e.target.value)} style={inputStyle}>
+                  <option value="">Select Wing</option>
+                  <option value="Army">Army</option>
+                  <option value="Navy">Navy</option>
+                  <option value="Air Force">Air Force</option>
+                </select>
+              </Field>
+              <Field label="Division">
+                <select value={profile.division || ''} onChange={e => set('division', e.target.value)} style={inputStyle}>
+                  <option value="">Select</option>
+                  <option value="SD">SD (Senior Division)</option>
+                  <option value="SW">SW (Senior Wing)</option>
+                  <option value="JD">JD (Junior Division)</option>
+                  <option value="JW">JW (Junior Wing)</option>
+                </select>
+              </Field>
+              <Field label="Platoon"><input value={profile.platoon || ''} onChange={e => set('platoon', e.target.value)} placeholder="e.g. Alpha Platoon" style={inputStyle} /></Field>
+            </Section>
+
+            <Section title="👕 Uniform Sizes">
+              <Field label="Shirt Size">
+                <select value={profile.shirtSize || ''} onChange={e => set('shirtSize', e.target.value)} style={inputStyle}>
+                  <option value="">Select</option>
+                  {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="Trouser Size">
+                <select value={profile.trouserSize || ''} onChange={e => set('trouserSize', e.target.value)} style={inputStyle}>
+                  <option value="">Select</option>
+                  {['26', '28', '30', '32', '34', '36', '38', '40'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="Boot Size (UK)"><input type="number" value={profile.bootSize || ''} onChange={e => set('bootSize', parseInt(e.target.value))} placeholder="7" style={inputStyle} /></Field>
+            </Section>
+
+            <Section title="🆘 Emergency Contact">
+              <Field label="Contact Name"><input value={profile.emergencyName || ''} onChange={e => set('emergencyName', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Relation"><input value={profile.emergencyRelation || ''} onChange={e => set('emergencyRelation', e.target.value)} placeholder="Father / Mother / Guardian" style={inputStyle} /></Field>
+              <Field label="Phone Number" full><input value={profile.emergencyPhone || ''} onChange={e => set('emergencyPhone', e.target.value)} style={inputStyle} /></Field>
+            </Section>
+
+            <Section title="🏥 Medical Information">
+              <Field label="Any Medical Issues" full>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  {['Yes', 'No'].map(opt => (
+                    <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+                      <input type="radio" name="medical" value={opt} checked={opt === 'Yes' ? !!profile.medicalIssues : !profile.medicalIssues}
+                        onChange={() => set('medicalIssues', opt === 'Yes')} /> {opt}
+                    </label>
                   ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">City</label>
-                <select 
-                  className="form-select" 
-                  value={form.city || ''} 
-                  onChange={(e) => handleChange('city', e.target.value)}
-                  disabled={!form.state}
-                >
-                  <option value="" disabled>{form.state ? 'Select City' : 'Select State First'}</option>
-                  {form.state && STATE_CITIES[form.state]?.map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
+                </div>
+              </Field>
+              {profile.medicalIssues && (
+                <Field label="Medical Details" full>
+                  <textarea value={profile.medicalDetails || ''} onChange={e => set('medicalDetails', e.target.value)} rows={2} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'vertical' }} placeholder="Briefly describe your medical condition..." />
+                </Field>
+              )}
+            </Section>
 
-        {/* Emergency Contact */}
-        {activeTab === 'emergency' && (
-          <div>
-            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <AlertTriangle size={18} color="#d97706" /> Emergency Contact
-            </h3>
-            <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>
-              This person will be contacted in case of emergency during camps.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="form-group">
-                <label className="form-label">Contact Name</label>
-                <input className="form-input" value={form.emergencyName || ''} onChange={(e) => handleChange('emergencyName', e.target.value)} placeholder="Full name" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Relationship</label>
-                <input className="form-input" value={form.emergencyRelation || ''} onChange={(e) => handleChange('emergencyRelation', e.target.value)} placeholder="e.g. Father, Mother" />
-              </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Emergency Phone</label>
-                <input className="form-input" value={form.emergencyPhone || ''} onChange={(e) => handleChange('emergencyPhone', e.target.value)} placeholder="+91 XXXXX XXXXX" />
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 32 }}>
+              <button onClick={handleSave} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--navy-600)', color: '#fff', padding: '12px 28px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                <Save size={16} /> {saving ? 'Saving…' : 'Save All Changes'}
+              </button>
             </div>
-          </div>
-        )}
-
-        {/* Medical */}
-        {activeTab === 'medical' && (
-          <div>
-            <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Heart size={18} color="#dc2626" /> Medical Information
-            </h3>
-            <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>
-              Medical conditions are kept confidential and only used for camp safety screening.
-            </p>
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={form.medicalIssues || false}
-                  onChange={(e) => handleChange('medicalIssues', e.target.checked)}
-                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#1e3a5f' }}
-                />
-                <span style={{ fontSize: 14, color: '#0f172a', fontWeight: 500 }}>I have a medical condition that the ANO should be aware of</span>
-              </label>
-            </div>
-            {form.medicalIssues && (
-              <div className="form-group">
-                <label className="form-label">Medical Details</label>
-                <textarea
-                  className="form-input"
-                  value={form.medicalDetails || ''}
-                  onChange={(e) => handleChange('medicalDetails', e.target.value)}
-                  placeholder="Briefly describe your medical condition..."
-                  rows={4}
-                  style={{ resize: 'vertical' }}
-                />
-              </div>
-            )}
-            {!form.medicalIssues && (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 16, marginTop: 8 }}>
-                <p style={{ color: '#15803d', fontSize: 14 }}>✓ No medical issues declared. You are eligible for all camps.</p>
-              </div>
-            )}
-          </div>
+          </>
         )}
       </div>
     </AppShell>

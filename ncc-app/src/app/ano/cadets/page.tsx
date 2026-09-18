@@ -67,10 +67,10 @@ export default function CadetsPage() {
     `${c.firstName?.[0] || ''}${c.lastName?.[0] || ''}`.toUpperCase() || '?';
 
   return (
-    <AppShell requiredRole={['ano', 'admin']}>
+    <AppShell requiredRole={['ano', 'admin', 'mod_cadet']}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>
-          {anoBranch} Wing Cadets
+          {anoBranch} Wing — Platoon Roster
         </h1>
         <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>{cadets.length} cadets in your wing with verified submissions.</p>
       </div>
@@ -175,7 +175,7 @@ export default function CadetsPage() {
                     )}
                   </td>
                   <td>
-                    <Link href={`/ano/cadets/${cadet.uid}`}>
+                    <Link href={`${userProfile?.role === 'mod_cadet' ? '/mod-cadet/roster' : '/ano/cadets'}/${cadet.uid}`}>
                       <button className="btn-ghost">
                         View <ChevronRight size={14} />
                       </button>

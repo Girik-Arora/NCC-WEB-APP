@@ -3,45 +3,277 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users collection — readable by any signed-in user, writable by owner only
+    // ─── Helper functions ──────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUid() {
+      return request.auth.uid;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    function hasAnyRole(roles) {
+      return isSignedIn() && getUserData().role in roles;
+    }
+
+    function isANOOrAbove() {
+      return hasAnyRole(['ano', 'oic', 'admin']);
+    }
+
+    function isCommandStaff() {
+      return hasAnyRole(['ano', 'oic', 'admin', 'clerk']);
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && currentUid() == uid;
+    }
+
+    function isOwnerOrCommandStaff(uid) {
+      return isOwner(uid) || isCommandStaff();
+    }
+
+    function isOwnerOrANO(uid) {
+      return isOwner(uid) || isANOOrAbove();
+    }
+
+    // ─── Users ─────────────────────────────────────────────────────────────────
+    // Each user can read/write their own profile.
+    // Admins can read/write any profile.
+
     match /users/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read: if isSignedIn() && (isOwner(uid) || isCommandStaff());
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isSignedIn() && (
+        isOwner(uid) ||
+        hasRole('admin')
+      );
+      allow delete: if hasRole('admin');
     }
 
-    // Cadets collection — readable by any signed-in user, writable by owner only
+    // ─── Cadets ────────────────────────────────────────────────────────────────
+    // Cadets manage their own detailed profile.
+    // Command staff can read all cadet profiles.
+
     match /cadets/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read: if isOwnerOrCommandStaff(uid);
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isOwnerOrCommandStaff(uid);
+      allow delete: if isANOOrAbove();
     }
 
-    // Evaluations — readable by any signed-in user, writable by ANO/admin (any authenticated)
-    match /evaluations/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+    // ─── Skills ────────────────────────────────────────────────────────────────
+    // Skills are stored per cadet. Only the cadet or command staff can access.
+
+    match /skills/{uid} {
+      allow read: if isOwnerOrCommandStaff(uid);
+      allow write: if isOwnerOrCommandStaff(uid);
     }
 
-    // Achievements — readable by any signed-in user, writable by owner
+    // ─── Achievements ──────────────────────────────────────────────────────────
+    // Cadets add their own achievements (pending verification).
+    // ANO/admin can verify/reject.
+
     match /achievements/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn() && (
+        resource.data.uid == currentUid() || isCommandStaff()
+      );
+      allow create: if isSignedIn() && request.resource.data.uid == currentUid();
+      allow update: if isSignedIn() && (
+        resource.data.uid == currentUid() ||
+        isANOOrAbove()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.uid == currentUid() || isANOOrAbove()
+      );
     }
 
-    // Skills — readable by any signed-in user, writable by owner
-    match /skills/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
+    // ─── Camp Records (per cadet) ───────────────────────────────────────────────
+    // Cadets log their own camp attendance (pending verification).
 
-    // Camps — readable by any signed-in user, writable by any authenticated user
     match /camps/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn() && (
+        resource.data.uid == currentUid() || isCommandStaff()
+      );
+      allow create: if isSignedIn() && request.resource.data.uid == currentUid();
+      allow update: if isSignedIn() && (
+        resource.data.uid == currentUid() ||
+        isCommandStaff()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.uid == currentUid() || isANOOrAbove()
+      );
     }
 
-    // Fallback: any signed-in user can read/write anything else
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // ─── Camp Events (Unit-Level) ───────────────────────────────────────────────
+    // Command staff manage camp events. All signed-in users can read.
+
+    match /camp_events/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
     }
+
+    // ─── Parades / Attendance Sessions ─────────────────────────────────────────
+
+    match /parades/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Attendance Records ─────────────────────────────────────────────────────
+
+    match /attendance/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.cadetUid == currentUid() || isCommandStaff()
+      );
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Training Sessions ──────────────────────────────────────────────────────
+
+    match /training_sessions/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Events & Activities ────────────────────────────────────────────────────
+
+    match /events/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    match /event_participants/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Announcements ──────────────────────────────────────────────────────────
+
+    match /announcements/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Documents ──────────────────────────────────────────────────────────────
+
+    match /documents/{docId} {
+      allow read: if isCommandStaff();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Inventory ──────────────────────────────────────────────────────────────
+
+    match /inventory/{docId} {
+      allow read: if isCommandStaff();
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    match /inventory_transactions/{docId} {
+      allow read: if isCommandStaff();
+      allow create: if isCommandStaff();
+      allow update: if isANOOrAbove();
+      allow delete: if hasRole('admin');
+    }
+
+    // ─── Medical Records ────────────────────────────────────────────────────────
+    // Medical records are sensitive — only ANO/admin + the cadet themselves.
+
+    match /medical_records/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.uid == currentUid() || isANOOrAbove()
+      );
+      allow create, update: if isANOOrAbove();
+      allow delete: if hasRole('admin');
+    }
+
+    // ─── Promotions ─────────────────────────────────────────────────────────────
+
+    match /promotions/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.cadetUid == currentUid() || isCommandStaff()
+      );
+      allow create, update: if isANOOrAbove();
+      allow delete: if hasRole('admin');
+    }
+
+    // ─── Finance / Ledger ───────────────────────────────────────────────────────
+
+    match /finance/{docId} {
+      allow read: if isANOOrAbove();
+      allow create, update: if isCommandStaff();
+      allow delete: if hasRole('admin');
+    }
+
+    // ─── Applications (Enrollment) ──────────────────────────────────────────────
+    // Public enrollment: anyone can CREATE an application (no auth needed).
+    // Only command staff can READ and UPDATE (process) applications.
+
+    match /applications/{docId} {
+      allow create: if true;   // Public enrollment form — no auth required
+      allow read, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Evaluations ────────────────────────────────────────────────────────────
+
+    match /evaluations/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.cadetUid == currentUid() || isCommandStaff()
+      );
+      allow create, update: if isCommandStaff();
+      allow delete: if isANOOrAbove();
+    }
+
+    // ─── Audit Logs ─────────────────────────────────────────────────────────────
+    // Audit logs are append-only (never update/delete).
+
+    match /audit_logs/{docId} {
+      allow read: if isANOOrAbove();
+      allow create: if isSignedIn();   // System writes logs on actions
+      allow update, delete: if false;  // Immutable
+    }
+
+    // ─── Alumni ─────────────────────────────────────────────────────────────────
+
+    match /alumni/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isCommandStaff());
+      allow create, update: if isCommandStaff();
+      allow delete: if hasRole('admin');
+    }
+
+    // ─── Compliance Reports ─────────────────────────────────────────────────────
+
+    match /compliance_reports/{docId} {
+      allow read: if isANOOrAbove();
+      allow create, update: if isCommandStaff();
+      allow delete: if hasRole('admin');
+    }
+
+    // ─── Notifications ──────────────────────────────────────────────────────────
+
+    match /notifications/{uid}/messages/{msgId} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isCommandStaff();
+      allow update: if isOwner(uid);
+    }
+
   }
 }
